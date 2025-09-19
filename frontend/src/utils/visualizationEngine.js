@@ -266,6 +266,30 @@ export class VisualizationEngine {
       case 'polygon':
         this.renderPolygon(props);      // Draw polygon
         break;
+      case 'path':
+        this.renderPath(props);         // Draw custom path/curve
+        break;
+      case 'gradient':
+        this.renderGradient(props);     // Draw gradient shape
+        break;
+      case 'particle':
+        this.renderParticle(props);     // Draw particle effect
+        break;
+      case 'wave':
+        this.renderWave(props);         // Draw sine wave
+        break;
+      case 'spiral':
+        this.renderSpiral(props);       // Draw spiral
+        break;
+      case 'star':
+        this.renderStar(props);         // Draw star shape
+        break;
+      case 'arc':
+        this.renderArc(props);          // Draw arc/sector
+        break;
+      case 'bezier':
+        this.renderBezier(props);       // Draw bezier curve
+        break;
       default:
         console.warn('Unknown layer type:', layer.type);
     }
@@ -382,23 +406,29 @@ export class VisualizationEngine {
 
       // SPECIAL CASE: Orbital motion (circular movement around a center point)
       if (animation.property === 'orbit') {
-        // Allow missing start time (default to 0)
-        const start = animation.start ?? 0;
-        
-        // Calculate duration - try explicit duration, then start/end difference, then total viz duration
-        const duration = animation.duration ?? 
-                        (animation.end && animation.start ? (animation.end - animation.start) : 
-                        (this.visualization?.duration || 1000));
+        // Support both old and new animation format
+        const start = animation.start ?? animation.delay ?? 0;
+        const duration = animation.duration ?? 1000;
         
         // Skip if duration is invalid
         if (duration <= 0) return;
         
         // Only apply if current time is past start time
         if (this.currentTime >= start) {
-          // Calculate local time within this animation (with looping using modulo)
-          const localT = (this.currentTime - start) % duration;
+          // Calculate local time within this animation
+          let localT = this.currentTime - start;
+          
+          // Handle repeating orbital motion
+          if (animation.repeat) {
+            localT = localT % duration;
+          } else {
+            // Clamp to duration if not repeating
+            localT = Math.min(localT, duration);
+          }
+          
           const progress = localT / duration;           // 0-1 progress through one orbit
-          const angle = progress * Math.PI * 2;         // Convert to radians (0-2π)
+          const startAngle = animation.startAngle ?? 0; // Starting angle offset
+          const angle = startAngle + progress * Math.PI * 2; // Convert to radians (0-2π)
           
           // Get orbit parameters with fallbacks
           const cx = animation.centerX ?? props.x ?? 0; // Center X
@@ -413,18 +443,47 @@ export class VisualizationEngine {
       }
 
       // STANDARD ANIMATIONS - Property interpolation between start and end values
-      const { start = 0, end = this.visualization?.duration || 0, from, to } = animation;
+      // Support both old format (start/end/from/to) and new format (startValue/endValue/duration/repeat)
+      const start = animation.start ?? animation.delay ?? 0;
+      const duration = animation.duration ?? (animation.end ? (animation.end - start) : 1000);
+      const from = animation.from ?? animation.startValue;
+      const to = animation.to ?? animation.endValue;
       
       // Skip invalid animations
-      if (end <= start) return;                         // Avoid divide by zero
-      if (this.currentTime < start || this.currentTime > end) return; // Outside time range
+      if (duration <= 0) return;                        // Invalid duration
       if (from === undefined || to === undefined) return; // Missing values
       
-      // Calculate progress through animation (0-1)
-      const rawProgress = (this.currentTime - start) / (end - start);
+      // Handle repeating animations
+      let currentTime = this.currentTime - start;
+      if (currentTime < 0) return; // Animation hasn't started yet
       
-      // Apply easing function for smooth motion (ease-in-out quadratic)
-      const eased = this.easeInOutQuad(Math.min(Math.max(rawProgress, 0), 1));
+      if (animation.repeat) {
+        // For repeating animations, use modulo to loop
+        if (animation.alternate) {
+          // Back and forth (ping-pong) animation
+          const cycleTime = duration * 2;
+          const timeInCycle = currentTime % cycleTime;
+          if (timeInCycle <= duration) {
+            currentTime = timeInCycle;
+          } else {
+            currentTime = duration - (timeInCycle - duration);
+          }
+        } else {
+          // Simple repeat (restart from beginning)
+          currentTime = currentTime % duration;
+        }
+      } else {
+        // Non-repeating animation - clamp to duration
+        currentTime = Math.min(currentTime, duration);
+      }
+      
+      // Calculate progress through animation (0-1)
+      const rawProgress = currentTime / duration;
+      
+      // Apply easing function for smooth motion
+      const easing = animation.easing || 'easeInOutQuad';
+      const easingFunc = this._getEasingFunction(easing);
+      const eased = easingFunc(Math.min(Math.max(rawProgress, 0), 1));
       
       // Interpolate between start and end values
       const value = from + (to - from) * eased;
@@ -792,6 +851,84 @@ export class VisualizationEngine {
     }
   }
 
+  // ======================================
+  // ANIMATION EASING FUNCTIONS
+  // ======================================
+  
+  // Linear interpolation (no easing)
+  _easeLinear(t) {
+    return t;
+  }
+  
+  // Ease in (slow start)
+  _easeInQuad(t) {
+    return t * t;
+  }
+  
+  // Ease out (slow end)
+  _easeOutQuad(t) {
+    return t * (2 - t);
+  }
+  
+  // Ease in-out (slow start and end)
+  _easeInOutQuad(t) {
+    return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+  }
+  
+  // Cubic easing
+  _easeInCubic(t) {
+    return t * t * t;
+  }
+  
+  _easeOutCubic(t) {
+    return (--t) * t * t + 1;
+  }
+  
+  // Elastic easing (bouncy)
+  _easeOutElastic(t) {
+    const c4 = (2 * Math.PI) / 3;
+    return t === 0 ? 0 : t === 1 ? 1 : Math.pow(2, -10 * t) * Math.sin((t * 10 - 0.75) * c4) + 1;
+  }
+  
+  // Bounce easing
+  _easeOutBounce(t) {
+    const n1 = 7.5625;
+    const d1 = 2.75;
+    
+    if (t < 1 / d1) {
+      return n1 * t * t;
+    } else if (t < 2 / d1) {
+      return n1 * (t -= 1.5 / d1) * t + 0.75;
+    } else if (t < 2.5 / d1) {
+      return n1 * (t -= 2.25 / d1) * t + 0.9375;
+    } else {
+      return n1 * (t -= 2.625 / d1) * t + 0.984375;
+    }
+  }
+  
+  // Get easing function by name
+  _getEasingFunction(easingType) {
+    const easingFunctions = {
+      'linear': this._easeLinear,
+      'ease-in': this._easeInQuad,
+      'ease-out': this._easeOutQuad,
+      'ease-in-out': this._easeInOutQuad,
+      'ease-in-cubic': this._easeInCubic,
+      'ease-out-cubic': this._easeOutCubic,
+      'elastic': this._easeOutElastic,
+      'bounce': this._easeOutBounce
+    };
+    
+    return easingFunctions[easingType] || this._easeLinear;
+  }
+  
+  // Apply easing to animation properties
+  _applyEasing(startValue, endValue, progress, easingType = 'linear') {
+    const easingFunc = this._getEasingFunction(easingType);
+    const easedProgress = easingFunc.call(this, progress);
+    return startValue + (endValue - startValue) * easedProgress;
+  }
+
   // Utility function to constrain value within min/max bounds
   _clamp(value, min, max) {
     return Math.min(Math.max(value, min), max);
@@ -964,6 +1101,492 @@ export class VisualizationEngine {
 
   easeInOutCubic(t) {
     return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  }
+
+  // ======================================
+  // ADVANCED SHAPE RENDERERS
+  // ======================================
+
+  renderRectangle(props) {
+    this.ctx.save();
+    
+    // Normalize coordinates and dimensions
+    const normalizedX = this._normalizeCoordinate(props.x, true);
+    const normalizedY = this._normalizeCoordinate(props.y, false);
+    const normalizedWidth = this._normalizeSize(props.width);
+    const normalizedHeight = this._normalizeSize(props.height);
+    
+    // Apply scaling
+    const x = normalizedX * this.scaleX;
+    const y = normalizedY * this.scaleY;
+    const width = normalizedWidth * this.scaleX;
+    const height = normalizedHeight * this.scaleY;
+    
+    // Set styles
+    this.ctx.fillStyle = props.fill || '#3498db';
+    this.ctx.strokeStyle = props.stroke || '#2c3e50';
+    this.ctx.lineWidth = props.strokeWidth || 1;
+    this.ctx.globalAlpha = props.opacity !== undefined ? props.opacity : 1;
+    
+    // Draw rectangle
+    if (props.fill) this.ctx.fillRect(x, y, width, height);
+    if (props.stroke) this.ctx.strokeRect(x, y, width, height);
+    
+    this.ctx.restore();
+  }
+
+  renderEllipse(props) {
+    this.ctx.save();
+    
+    // Normalize coordinates and dimensions
+    const normalizedX = this._normalizeCoordinate(props.x, true);
+    const normalizedY = this._normalizeCoordinate(props.y, false);
+    const normalizedRadiusX = this._normalizeSize(props.radiusX || props.rx || props.radius || 50);
+    const normalizedRadiusY = this._normalizeSize(props.radiusY || props.ry || props.radius || 30);
+    
+    // Apply scaling
+    const x = normalizedX * this.scaleX;
+    const y = normalizedY * this.scaleY;
+    const radiusX = normalizedRadiusX * this.scaleX;
+    const radiusY = normalizedRadiusY * this.scaleY;
+    
+    // Set styles
+    this.ctx.fillStyle = props.fill || '#3498db';
+    this.ctx.strokeStyle = props.stroke || '#2c3e50';
+    this.ctx.lineWidth = props.strokeWidth || 1;
+    this.ctx.globalAlpha = props.opacity !== undefined ? props.opacity : 1;
+    
+    // Draw ellipse
+    this.ctx.beginPath();
+    this.ctx.ellipse(x, y, radiusX, radiusY, props.rotation || 0, 0, 2 * Math.PI);
+    
+    if (props.fill) this.ctx.fill();
+    if (props.stroke) this.ctx.stroke();
+    
+    this.ctx.restore();
+  }
+
+  renderPolygon(props) {
+    this.ctx.save();
+    
+    if (!props.points || props.points.length < 3) {
+      console.warn('Polygon requires at least 3 points');
+      this.ctx.restore();
+      return;
+    }
+    
+    // Set styles
+    this.ctx.fillStyle = props.fill || '#3498db';
+    this.ctx.strokeStyle = props.stroke || '#2c3e50';
+    this.ctx.lineWidth = props.strokeWidth || 1;
+    this.ctx.globalAlpha = props.opacity !== undefined ? props.opacity : 1;
+    
+    // Draw polygon
+    this.ctx.beginPath();
+    
+    // Normalize first point and move to it
+    const firstPoint = props.points[0];
+    const normalizedFirstX = this._normalizeCoordinate(firstPoint.x, true);
+    const normalizedFirstY = this._normalizeCoordinate(firstPoint.y, false);
+    this.ctx.moveTo(normalizedFirstX * this.scaleX, normalizedFirstY * this.scaleY);
+    
+    // Draw lines to remaining points
+    for (let i = 1; i < props.points.length; i++) {
+      const point = props.points[i];
+      const normalizedX = this._normalizeCoordinate(point.x, true);
+      const normalizedY = this._normalizeCoordinate(point.y, false);
+      this.ctx.lineTo(normalizedX * this.scaleX, normalizedY * this.scaleY);
+    }
+    
+    this.ctx.closePath();
+    
+    if (props.fill) this.ctx.fill();
+    if (props.stroke) this.ctx.stroke();
+    
+    this.ctx.restore();
+  }
+
+  renderStar(props) {
+    this.ctx.save();
+    
+    const normalizedCenterX = this._normalizeCoordinate(props.x, true);
+    const normalizedCenterY = this._normalizeCoordinate(props.y, false);
+    const normalizedOuterRadius = this._normalizeSize(props.outerRadius || 50);
+    const normalizedInnerRadius = this._normalizeSize(props.innerRadius || 25);
+    
+    const centerX = normalizedCenterX * this.scaleX;
+    const centerY = normalizedCenterY * this.scaleY;
+    const outerRadius = normalizedOuterRadius * ((this.scaleX + this.scaleY) / 2);
+    const innerRadius = normalizedInnerRadius * ((this.scaleX + this.scaleY) / 2);
+    const points = props.points || 5;
+    const rotation = props.rotation || 0;
+    
+    // Set styles
+    this.ctx.fillStyle = props.fill || '#f1c40f';
+    this.ctx.strokeStyle = props.stroke || '#f39c12';
+    this.ctx.lineWidth = props.strokeWidth || 2;
+    this.ctx.globalAlpha = props.opacity !== undefined ? props.opacity : 1;
+    
+    // Draw star
+    this.ctx.beginPath();
+    
+    for (let i = 0; i < points * 2; i++) {
+      const angle = (i * Math.PI / points) + rotation;
+      const radius = i % 2 === 0 ? outerRadius : innerRadius;
+      const x = centerX + Math.cos(angle) * radius;
+      const y = centerY + Math.sin(angle) * radius;
+      
+      if (i === 0) {
+        this.ctx.moveTo(x, y);
+      } else {
+        this.ctx.lineTo(x, y);
+      }
+    }
+    
+    this.ctx.closePath();
+    
+    if (props.fill) this.ctx.fill();
+    if (props.stroke) this.ctx.stroke();
+    
+    this.ctx.restore();
+  }
+
+  renderWave(props) {
+    this.ctx.save();
+    
+    const normalizedStartX = this._normalizeCoordinate(props.startX || 0, true);
+    const normalizedStartY = this._normalizeCoordinate(props.startY || this.baseHeight / 2, false);
+    const normalizedEndX = this._normalizeCoordinate(props.endX || this.baseWidth, true);
+    const normalizedAmplitude = this._normalizeSize(props.amplitude || 20);
+    
+    const startX = normalizedStartX * this.scaleX;
+    const startY = normalizedStartY * this.scaleY;
+    const endX = normalizedEndX * this.scaleX;
+    const amplitude = normalizedAmplitude * this.scaleY;
+    const frequency = props.frequency || 0.02;
+    const phase = props.phase || 0;
+    
+    // Set styles
+    this.ctx.strokeStyle = props.stroke || '#3498db';
+    this.ctx.lineWidth = props.strokeWidth || 3;
+    this.ctx.globalAlpha = props.opacity !== undefined ? props.opacity : 1;
+    
+    // Draw wave
+    this.ctx.beginPath();
+    
+    for (let x = startX; x <= endX; x += 2) {
+      const progress = (x - startX) / (endX - startX);
+      const y = startY + Math.sin(progress * frequency * 1000 + phase) * amplitude;
+      
+      if (x === startX) {
+        this.ctx.moveTo(x, y);
+      } else {
+        this.ctx.lineTo(x, y);
+      }
+    }
+    
+    this.ctx.stroke();
+    this.ctx.restore();
+  }
+
+  renderSpiral(props) {
+    this.ctx.save();
+    
+    const normalizedCenterX = this._normalizeCoordinate(props.x, true);
+    const normalizedCenterY = this._normalizeCoordinate(props.y, false);
+    const normalizedMaxRadius = this._normalizeSize(props.maxRadius || 100);
+    
+    const centerX = normalizedCenterX * this.scaleX;
+    const centerY = normalizedCenterY * this.scaleY;
+    const maxRadius = normalizedMaxRadius * ((this.scaleX + this.scaleY) / 2);
+    const turns = props.turns || 3;
+    const startAngle = props.startAngle || 0;
+    
+    // Set styles
+    this.ctx.strokeStyle = props.stroke || '#9b59b6';
+    this.ctx.lineWidth = props.strokeWidth || 2;
+    this.ctx.globalAlpha = props.opacity !== undefined ? props.opacity : 1;
+    
+    // Draw spiral
+    this.ctx.beginPath();
+    
+    const steps = turns * 50;
+    for (let i = 0; i <= steps; i++) {
+      const progress = i / steps;
+      const angle = startAngle + progress * turns * 2 * Math.PI;
+      const radius = progress * maxRadius;
+      const x = centerX + Math.cos(angle) * radius;
+      const y = centerY + Math.sin(angle) * radius;
+      
+      if (i === 0) {
+        this.ctx.moveTo(x, y);
+      } else {
+        this.ctx.lineTo(x, y);
+      }
+    }
+    
+    this.ctx.stroke();
+    this.ctx.restore();
+  }
+
+  renderArc(props) {
+    this.ctx.save();
+    
+    const normalizedCenterX = this._normalizeCoordinate(props.x, true);
+    const normalizedCenterY = this._normalizeCoordinate(props.y, false);
+    const normalizedRadius = this._normalizeSize(props.radius || 50);
+    
+    const centerX = normalizedCenterX * this.scaleX;
+    const centerY = normalizedCenterY * this.scaleY;
+    const radius = normalizedRadius * ((this.scaleX + this.scaleY) / 2);
+    const startAngle = props.startAngle || 0;
+    const endAngle = props.endAngle || Math.PI;
+    const counterclockwise = props.counterclockwise || false;
+    
+    // Set styles
+    this.ctx.fillStyle = props.fill || '#e74c3c';
+    this.ctx.strokeStyle = props.stroke || '#c0392b';
+    this.ctx.lineWidth = props.strokeWidth || 2;
+    this.ctx.globalAlpha = props.opacity !== undefined ? props.opacity : 1;
+    
+    // Draw arc
+    this.ctx.beginPath();
+    this.ctx.arc(centerX, centerY, radius, startAngle, endAngle, counterclockwise);
+    
+    if (props.sector) {
+      // Draw as pie slice
+      this.ctx.lineTo(centerX, centerY);
+      this.ctx.closePath();
+    }
+    
+    if (props.fill) this.ctx.fill();
+    if (props.stroke) this.ctx.stroke();
+    
+    this.ctx.restore();
+  }
+
+  renderBezier(props) {
+    this.ctx.save();
+    
+    if (!props.startPoint || !props.endPoint) {
+      console.warn('Bezier curve requires startPoint and endPoint');
+      this.ctx.restore();
+      return;
+    }
+    
+    // Normalize all points
+    const normalizedStartX = this._normalizeCoordinate(props.startPoint.x, true);
+    const normalizedStartY = this._normalizeCoordinate(props.startPoint.y, false);
+    const normalizedEndX = this._normalizeCoordinate(props.endPoint.x, true);
+    const normalizedEndY = this._normalizeCoordinate(props.endPoint.y, false);
+    
+    const startX = normalizedStartX * this.scaleX;
+    const startY = normalizedStartY * this.scaleY;
+    const endX = normalizedEndX * this.scaleX;
+    const endY = normalizedEndY * this.scaleY;
+    
+    // Set styles
+    this.ctx.strokeStyle = props.stroke || '#2ecc71';
+    this.ctx.lineWidth = props.strokeWidth || 3;
+    this.ctx.globalAlpha = props.opacity !== undefined ? props.opacity : 1;
+    
+    // Draw bezier curve
+    this.ctx.beginPath();
+    this.ctx.moveTo(startX, startY);
+    
+    if (props.controlPoint1 && props.controlPoint2) {
+      // Cubic bezier
+      const normalizedCP1X = this._normalizeCoordinate(props.controlPoint1.x, true);
+      const normalizedCP1Y = this._normalizeCoordinate(props.controlPoint1.y, false);
+      const normalizedCP2X = this._normalizeCoordinate(props.controlPoint2.x, true);
+      const normalizedCP2Y = this._normalizeCoordinate(props.controlPoint2.y, false);
+      
+      const cp1X = normalizedCP1X * this.scaleX;
+      const cp1Y = normalizedCP1Y * this.scaleY;
+      const cp2X = normalizedCP2X * this.scaleX;
+      const cp2Y = normalizedCP2Y * this.scaleY;
+      
+      this.ctx.bezierCurveTo(cp1X, cp1Y, cp2X, cp2Y, endX, endY);
+    } else if (props.controlPoint1) {
+      // Quadratic bezier
+      const normalizedCPX = this._normalizeCoordinate(props.controlPoint1.x, true);
+      const normalizedCPY = this._normalizeCoordinate(props.controlPoint1.y, false);
+      
+      const cpX = normalizedCPX * this.scaleX;
+      const cpY = normalizedCPY * this.scaleY;
+      
+      this.ctx.quadraticCurveTo(cpX, cpY, endX, endY);
+    } else {
+      // Simple line if no control points
+      this.ctx.lineTo(endX, endY);
+    }
+    
+    this.ctx.stroke();
+    this.ctx.restore();
+  }
+
+  renderParticle(props) {
+    this.ctx.save();
+    
+    // Handle particle system
+    const particles = props.particles || [{ x: props.x, y: props.y, size: props.size || 3 }];
+    
+    particles.forEach((particle, index) => {
+      const normalizedX = this._normalizeCoordinate(particle.x, true);
+      const normalizedY = this._normalizeCoordinate(particle.y, false);
+      const normalizedSize = this._normalizeSize(particle.size || 3);
+      
+      const x = normalizedX * this.scaleX;
+      const y = normalizedY * this.scaleY;
+      const size = normalizedSize * ((this.scaleX + this.scaleY) / 2);
+      
+      // Set particle appearance
+      const opacity = particle.opacity !== undefined ? particle.opacity : 
+                     (props.opacity !== undefined ? props.opacity : 0.7);
+      const color = particle.color || props.color || '#fff';
+      
+      this.ctx.fillStyle = color;
+      this.ctx.globalAlpha = opacity;
+      
+      // Draw particle
+      this.ctx.beginPath();
+      this.ctx.arc(x, y, size, 0, 2 * Math.PI);
+      this.ctx.fill();
+    });
+    
+    this.ctx.restore();
+  }
+
+  renderGradient(props) {
+    this.ctx.save();
+    
+    // Create gradient
+    let gradient;
+    
+    if (props.type === 'radial') {
+      const normalizedCenterX = this._normalizeCoordinate(props.x, true);
+      const normalizedCenterY = this._normalizeCoordinate(props.y, false);
+      const normalizedRadius = this._normalizeSize(props.radius || 100);
+      
+      const centerX = normalizedCenterX * this.scaleX;
+      const centerY = normalizedCenterY * this.scaleY;
+      const radius = normalizedRadius * ((this.scaleX + this.scaleY) / 2);
+      
+      gradient = this.ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
+    } else {
+      // Linear gradient
+      const normalizedStartX = this._normalizeCoordinate(props.startX || 0, true);
+      const normalizedStartY = this._normalizeCoordinate(props.startY || 0, false);
+      const normalizedEndX = this._normalizeCoordinate(props.endX || this.baseWidth, true);
+      const normalizedEndY = this._normalizeCoordinate(props.endY || 0, false);
+      
+      const startX = normalizedStartX * this.scaleX;
+      const startY = normalizedStartY * this.scaleY;
+      const endX = normalizedEndX * this.scaleX;
+      const endY = normalizedEndY * this.scaleY;
+      
+      gradient = this.ctx.createLinearGradient(startX, startY, endX, endY);
+    }
+    
+    // Add color stops
+    if (props.colorStops) {
+      props.colorStops.forEach(stop => {
+        gradient.addColorStop(stop.offset, stop.color);
+      });
+    } else {
+      gradient.addColorStop(0, props.startColor || '#3498db');
+      gradient.addColorStop(1, props.endColor || '#2c3e50');
+    }
+    
+    this.ctx.fillStyle = gradient;
+    this.ctx.globalAlpha = props.opacity !== undefined ? props.opacity : 1;
+    
+    // Fill shape with gradient
+    if (props.shape === 'circle') {
+      const normalizedX = this._normalizeCoordinate(props.x, true);
+      const normalizedY = this._normalizeCoordinate(props.y, false);
+      const normalizedRadius = this._normalizeSize(props.radius || 50);
+      
+      const x = normalizedX * this.scaleX;
+      const y = normalizedY * this.scaleY;
+      const radius = normalizedRadius * ((this.scaleX + this.scaleY) / 2);
+      
+      this.ctx.beginPath();
+      this.ctx.arc(x, y, radius, 0, 2 * Math.PI);
+      this.ctx.fill();
+    } else {
+      // Rectangle by default
+      const normalizedX = this._normalizeCoordinate(props.x || 0, true);
+      const normalizedY = this._normalizeCoordinate(props.y || 0, false);
+      const normalizedWidth = this._normalizeSize(props.width || this.baseWidth);
+      const normalizedHeight = this._normalizeSize(props.height || this.baseHeight);
+      
+      const x = normalizedX * this.scaleX;
+      const y = normalizedY * this.scaleY;
+      const width = normalizedWidth * this.scaleX;
+      const height = normalizedHeight * this.scaleY;
+      
+      this.ctx.fillRect(x, y, width, height);
+    }
+    
+    this.ctx.restore();
+  }
+
+  renderPath(props) {
+    this.ctx.save();
+    
+    if (!props.commands || props.commands.length === 0) {
+      console.warn('Path requires commands array');
+      this.ctx.restore();
+      return;
+    }
+    
+    // Set styles
+    this.ctx.fillStyle = props.fill || 'transparent';
+    this.ctx.strokeStyle = props.stroke || '#2c3e50';
+    this.ctx.lineWidth = props.strokeWidth || 2;
+    this.ctx.globalAlpha = props.opacity !== undefined ? props.opacity : 1;
+    
+    // Execute path commands
+    this.ctx.beginPath();
+    
+    props.commands.forEach(cmd => {
+      switch (cmd.type) {
+        case 'moveTo':
+          const normalizedMoveX = this._normalizeCoordinate(cmd.x, true);
+          const normalizedMoveY = this._normalizeCoordinate(cmd.y, false);
+          this.ctx.moveTo(normalizedMoveX * this.scaleX, normalizedMoveY * this.scaleY);
+          break;
+          
+        case 'lineTo':
+          const normalizedLineX = this._normalizeCoordinate(cmd.x, true);
+          const normalizedLineY = this._normalizeCoordinate(cmd.y, false);
+          this.ctx.lineTo(normalizedLineX * this.scaleX, normalizedLineY * this.scaleY);
+          break;
+          
+        case 'arc':
+          const normalizedArcX = this._normalizeCoordinate(cmd.x, true);
+          const normalizedArcY = this._normalizeCoordinate(cmd.y, false);
+          const normalizedArcRadius = this._normalizeSize(cmd.radius);
+          this.ctx.arc(
+            normalizedArcX * this.scaleX,
+            normalizedArcY * this.scaleY,
+            normalizedArcRadius * ((this.scaleX + this.scaleY) / 2),
+            cmd.startAngle,
+            cmd.endAngle
+          );
+          break;
+          
+        case 'closePath':
+          this.ctx.closePath();
+          break;
+      }
+    });
+    
+    if (props.fill && props.fill !== 'transparent') this.ctx.fill();
+    if (props.stroke) this.ctx.stroke();
+    
+    this.ctx.restore();
   }
 }
 

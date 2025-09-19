@@ -3,6 +3,7 @@ import ChatPanel from './components/ChatPanel';
 import ChatHistory from './components/ChatHistory';
 import VisualizationCanvas from './components/VisualizationCanvas';
 import ModularVisualizationCanvas from './components/ModularVisualizationCanvas';
+import AdvancedVisualizationDemo from './components/AdvancedVisualizationDemo';
 import ApiService from './services/apiService';
 import './App.css';
 
@@ -14,7 +15,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [sseConnection, setSSEConnection] = useState(null);
   const [error, setError] = useState(null);
-  const [viewMode, setViewMode] = useState('chat'); // 'chat' or 'history'
+  const [viewMode, setViewMode] = useState('chat'); // 'chat', 'history', or 'demo'
 
   // Refs for animations
   const appRef = useRef(null);
@@ -379,7 +380,8 @@ function App() {
               className="view-selector"
             >
               <option value="chat">💬 Chat Mode</option>
-              <option value="history">� History ({conversations.length} conversations)</option>
+              <option value="history">📚 History ({conversations.length} conversations)</option>
+              <option value="demo">🎨 Advanced Demo</option>
             </select>
           </div>
         </div>
@@ -408,13 +410,17 @@ function App() {
               />
             </div>
           </>
-        ) : (
+        ) : viewMode === 'history' ? (
           <div className="history-section">
             <ChatHistory
               conversations={conversations}
               isLoading={isLoading}
               autoPlayEnabled={true}
             />
+          </div>
+        ) : (
+          <div className="demo-section">
+            <AdvancedVisualizationDemo />
           </div>
         )}
       </div>

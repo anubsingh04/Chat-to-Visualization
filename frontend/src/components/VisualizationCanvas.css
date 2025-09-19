@@ -10,24 +10,47 @@
 
 .canvas-wrapper {
   flex: 1;
-  display: flex;
-  justify-content: center;
-  align-items: center; /* Center the canvas */
   background: white;
-  padding: 16px; /* Reduced padding for more space */
-  overflow: hidden; /* Prevent scrollbars */
-  position: relative; /* For absolute positioned children */
+  padding: 16px;
+  overflow: auto; /* Enable scrolling when content overflows */
+  position: relative;
+  scroll-behavior: smooth;
+  min-height: 0; /* Allow shrinking in flex container */
+  /* Remove flex centering that can interfere with scrolling */
+  /* The canvas will be positioned naturally, scrollbars appear when needed */
+}
+
+/* Custom scrollbar styling for better UX */
+.canvas-wrapper::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.canvas-wrapper::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.canvas-wrapper::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+.canvas-wrapper::-webkit-scrollbar-thumb:hover {
+  background: #a1a1a1;
 }
 
 .visualization-canvas {
-  border: 1px solid #e9ecef; /* Subtle border instead of red */
+  border: 1px solid #e9ecef;
   border-radius: 8px;
   background: white;
   display: block;
-  max-width: 100%; /* Responsive width */
-  max-height: 100%; /* Responsive height */
-  width: auto; /* Allow natural sizing */
-  height: auto; /* Allow natural sizing */
+  flex-shrink: 0; /* Prevent canvas from shrinking */
+  /* Center the canvas using margins when there's space */
+  margin: 0 auto;
+  /* Ensure minimum size to trigger scrolling when needed */
+  min-width: 800px;
+  min-height: 400px;
 }
 
 .visualization-controls {
