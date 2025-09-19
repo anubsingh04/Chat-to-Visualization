@@ -49,6 +49,19 @@ class ApiService {
     }
   }
 
+  // Clear all conversations
+  async clearAllConversations(userId) {
+    try {
+      const response = await this.api.delete('/api/conversations', {
+        data: { userId }
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error clearing conversations:', error);
+      throw error;
+    }
+  }
+
   // Create SSE connection for real-time updates
   createSSEConnection(onMessage, onError) {
     console.log('🔄 Creating SSE connection to:', `${API_BASE_URL}/api/stream`);

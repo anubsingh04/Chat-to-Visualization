@@ -90,6 +90,34 @@ router.get('/stats', async (req, res) => {
   }
 });
 
+// DELETE /api/conversations - Clear all conversations
+router.delete('/conversations', async (req, res) => {
+  try {
+    const { userId } = req.body;
+    
+    if (!userId) {
+      return res.status(400).json({ error: 'userId is required' });
+    }
+
+    // Clear all data from storage
+    await dataStore.clearAll();
+
+    // Broadcast clear event to all connected clients
+    broadcastSSE('conversations_cleared', { userId, timestamp: new Date() });
+
+    console.log(`🗑️ All conversations cleared for user: ${userId}`);
+    
+    res.json({ 
+      message: 'All conversations cleared successfully',
+      timestamp: new Date()
+    });
+
+  } catch (error) {
+    console.error('Error clearing conversations:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // GET /api/stream - SSE endpoint
 router.get('/stream', (req, res) => {
   // Set SSE headers

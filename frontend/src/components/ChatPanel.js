@@ -7,9 +7,12 @@ const ChatPanel = ({
   onSendMessage, 
   isConnected, 
   isLoading,
-  onVisualizationChange // Callback when user clicks to view a visualization
+  onVisualizationChange, // Callback when user clicks to view a visualization
+  onClearChat // Callback to clear all conversations and messages
 }) => {
   const [inputValue, setInputValue] = useState('');
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [confirmationInput, setConfirmationInput] = useState('');
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const messagesContainerRef = useRef(null);
@@ -82,6 +85,34 @@ const ChatPanel = ({
     }
   };
 
+  const handleClearChatClick = () => {
+    setShowConfirmation(true);
+    setConfirmationInput('');
+  };
+
+  const handleConfirmationCancel = () => {
+    setShowConfirmation(false);
+    setConfirmationInput('');
+  };
+
+  const handleConfirmationDelete = () => {
+    if (confirmationInput.toUpperCase() === 'DELETE') {
+      setShowConfirmation(false);
+      setConfirmationInput('');
+      onClearChat();
+    }
+  };
+
+  const handleConfirmationKeyPress = (e) => {
+    if (e.key === 'Enter' && isDeleteButtonEnabled) {
+      handleConfirmationDelete();
+    } else if (e.key === 'Escape') {
+      handleConfirmationCancel();
+    }
+  };
+
+  const isDeleteButtonEnabled = confirmationInput.toUpperCase() === 'DELETE';
+
   const exampleQuestions = [
     "Explain Newton's First Law of Motion",
     "How does the Solar System work?",
@@ -149,6 +180,15 @@ const ChatPanel = ({
           <span className="status-dot"></span>
           {isConnected ? 'Connected' : 'Disconnected'}
         </div>
+        {((conversations && conversations.length > 0) || (messages.length > 0)) && (
+          <button 
+            className="clear-chat-btn" 
+            onClick={handleClearChatClick}
+            title="Clear all conversations"
+          >
+            🗑️ Clear Chat
+          </button>
+        )}
       </div>
 
       <div className="chat-messages" ref={messagesContainerRef}>
@@ -225,6 +265,65 @@ const ChatPanel = ({
           Press Enter to send, Shift+Enter for new line
         </div> */}
       </div>
+
+      {/* Confirmation Overlay */}
+      {showConfirmation && (
+        <div className="confirmation-overlay">
+          <div className="confirmation-dialog">
+            <div className="confirmation-header">
+              <span className="confirmation-icon">⚠️</span>
+              <h3 className="confirmation-title">Delete All Conversations</h3>
+              <p className="confirmation-message">
+                This action will permanently delete all your conversations and cannot be undone.
+                To confirm, please type <strong>DELETE</strong> in the field below.
+              </p>
+            </div>
+
+            <div className="confirmation-input-section">
+              <label className="confirmation-input-label">
+                Type "DELETE" to confirm:
+              </label>
+              <input
+                type="text"
+                className={`confirmation-input ${
+                  confirmationInput 
+                    ? (isDeleteButtonEnabled ? 'valid' : 'invalid')
+                    : ''
+                }`}
+                value={confirmationInput}
+                onChange={(e) => setConfirmationInput(e.target.value)}
+                onKeyDown={handleConfirmationKeyPress}
+                placeholder="Type DELETE here..."
+                autoFocus
+              />
+              <div style={{ 
+                fontSize: '12px', 
+                color: '#7f8c8d', 
+                marginTop: '8px',
+                textAlign: 'center'
+              }}>
+                Press Enter to confirm • Press Escape to cancel
+              </div>
+            </div>
+
+            <div className="confirmation-buttons">
+              <button 
+                className="confirmation-btn confirmation-btn-cancel"
+                onClick={handleConfirmationCancel}
+              >
+                Cancel
+              </button>
+              <button 
+                className="confirmation-btn confirmation-btn-delete"
+                onClick={handleConfirmationDelete}
+                disabled={!isDeleteButtonEnabled}
+              >
+                🗑️ Delete All Conversations
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

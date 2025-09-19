@@ -553,6 +553,12 @@ textarea:focus {
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+.clear-transition {
+  opacity: 0.3;
+  transform: scale(0.95);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
 @keyframes slideInFromTop {
   0% {
     opacity: 0;

@@ -183,6 +183,15 @@ function App() {
           console.log('💓 Heartbeat received');
           break;
           
+        case 'conversations_cleared':
+          console.log('🗑️ Conversations cleared event received');
+          // Clear all frontend state when notified by server
+          setMessages([]);
+          setConversations([]);
+          setCurrentVisualization(null);
+          console.log('✅ Frontend state cleared via SSE');
+          break;
+          
         default:
           console.log('❓ Unknown SSE message type:', data.type);
       }
@@ -245,6 +254,44 @@ function App() {
     }
     
     setCurrentVisualization(visualization);
+  };
+
+  // Handle clearing all chat conversations and messages
+  const handleClearChat = async () => {
+    console.log('🗑️ Clearing all conversations and messages');
+    
+    try {
+      // Add CSS animation class for clear action
+      if (contentRef.current) {
+        contentRef.current.classList.add('clear-transition');
+        setTimeout(() => {
+          contentRef.current.classList.remove('clear-transition');
+        }, 300);
+      }
+      
+      // Clear from backend storage first
+      console.log('🗑️ Clearing backend data...');
+      await ApiService.clearAllConversations(userId);
+      console.log('✅ Backend data cleared successfully');
+      
+      // Clear all frontend state
+      setMessages([]);
+      setConversations([]);
+      setCurrentVisualization(null);
+      
+      console.log('✅ Frontend state cleared successfully');
+      
+    } catch (error) {
+      console.error('❌ Error clearing conversations:', error);
+      
+      // Still clear frontend state even if backend call fails
+      setMessages([]);
+      setConversations([]);
+      setCurrentVisualization(null);
+      
+      // You could show an error message to the user here
+      alert('Failed to clear conversations from server, but local data was cleared.');
+    }
   };
 
   // Animated view mode switching
@@ -355,6 +402,7 @@ function App() {
                 conversations={conversations}
                 onSendMessage={handleSendMessage}
                 onVisualizationChange={handleVisualizationChange}
+                onClearChat={handleClearChat}
                 isConnected={isConnected}
                 isLoading={isLoading}
               />
