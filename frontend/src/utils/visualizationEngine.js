@@ -5,6 +5,25 @@ export class VisualizationEngine {
       throw new Error('Canvas and context are required');
     }
     
+    /*
+    NORMALIZATION SYSTEM:
+    The engine now automatically handles LLM data with any coordinate range.
+    Examples:
+    - LLM provides coordinates in range [0, 1000] → Auto-normalized to canvas size
+    - LLM provides coordinates in range [-50, 50] → Auto-normalized to canvas size
+    - LLM provides coordinates in range [100, 200] → Auto-normalized to canvas size
+    
+    Features:
+    - Auto-detects coordinate bounds from visualization data
+    - Maintains aspect ratio while fitting to canvas
+    - Configurable padding from edges
+    - Can be disabled for manual coordinate control
+    
+    Usage:
+    engine.setNormalization(true, 20);  // Enable with 20px padding
+    engine.setNormalization(false);     // Disable (use original coordinates)
+    */
+    
     // Store references to HTML canvas element and its 2D rendering context
     this.canvas = canvas;
     this.ctx = context;
@@ -30,6 +49,11 @@ export class VisualizationEngine {
     this.scaleX = 1;              // Current horizontal scaling factor (actual/logical)
     this.scaleY = 1;              // Current vertical scaling factor
     
+    // Normalization system - handles LLM data that might have any coordinate range
+    this.normalizationBounds = null;  // Calculated bounds from LLM data
+    this.normalizationEnabled = true; // Whether to auto-normalize coordinates
+    this.padding = 20;                // Padding from canvas edges (pixels)
+    
     // Apply high-DPI scaling for crisp rendering on retina displays
     this._applyHiDPIScaling();
   }
@@ -46,6 +70,15 @@ export class VisualizationEngine {
     
     // Store the visualization data (contains layers, duration, animations)
     this.visualization = vizData;
+    
+    // Calculate normalization bounds for auto-scaling
+    this.normalizationBounds = this._calculateVisualizationBounds(vizData);
+    
+    if (this.debug && this.normalizationBounds) {
+      console.log('📐 Normalization enabled with bounds:', this.normalizationBounds);
+    } else if (this.debug) {
+      console.log('📐 Normalization disabled - using original coordinates');
+    }
     
     // Reset animation state to beginning
     this.reset();
@@ -408,10 +441,15 @@ export class VisualizationEngine {
     // Save current canvas state (styles, transforms, etc.)
     this.ctx.save();
     
-    // RESPONSIVE SCALING: Convert logical coordinates to actual canvas coordinates
-    const x = this._clamp(props.x * this.scaleX, 0, this.baseWidth * this.scaleX);   // Scale and clamp X
-    const y = this._clamp(props.y * this.scaleY, 0, this.baseHeight * this.scaleY); // Scale and clamp Y
-    const r = Math.max(0, props.r * ((this.scaleX + this.scaleY) / 2));             // Scale radius (average of X/Y scales)
+    // NORMALIZATION: Convert LLM coordinates to canvas coordinates, then apply responsive scaling
+    const normalizedX = this._normalizeCoordinate(props.x, true);   // Normalize X coordinate
+    const normalizedY = this._normalizeCoordinate(props.y, false);  // Normalize Y coordinate
+    const normalizedR = this._normalizeSize(props.r);               // Normalize radius
+    
+    // RESPONSIVE SCALING: Convert normalized coordinates to actual canvas coordinates
+    const x = this._clamp(normalizedX * this.scaleX, 0, this.baseWidth * this.scaleX);   // Scale and clamp X
+    const y = this._clamp(normalizedY * this.scaleY, 0, this.baseHeight * this.scaleY); // Scale and clamp Y
+    const r = Math.max(0, normalizedR * ((this.scaleX + this.scaleY) / 2));             // Scale radius (average of X/Y scales)
     
     // Set circle appearance properties
     this.ctx.fillStyle = props.fill || '#3498db';                    // Fill color (default blue)
@@ -439,11 +477,25 @@ export class VisualizationEngine {
     this.ctx.lineWidth = 3;                                 // Line thickness
     this.ctx.globalAlpha = props.opacity !== undefined ? props.opacity : 1; // Transparency
     
+    // NORMALIZATION: Convert LLM coordinates to canvas coordinates, then apply responsive scaling
+    const normalizedX = this._normalizeCoordinate(props.x, true);   // Normalize start X
+    const normalizedY = this._normalizeCoordinate(props.y, false);  // Normalize start Y
+    
+    // For arrows, we need to normalize the end point, not just the direction vector
+    const endX = props.x + props.dx;
+    const endY = props.y + props.dy;
+    const normalizedEndX = this._normalizeCoordinate(endX, true);
+    const normalizedEndY = this._normalizeCoordinate(endY, false);
+    
+    // Calculate normalized direction vector
+    const normalizedDx = normalizedEndX - normalizedX;
+    const normalizedDy = normalizedEndY - normalizedY;
+    
     // Apply responsive scaling to position and direction vector
-    const x = this._clamp(props.x * this.scaleX, 0, this.baseWidth * this.scaleX);   // Start X (scaled & clamped)
-    const y = this._clamp(props.y * this.scaleY, 0, this.baseHeight * this.scaleY); // Start Y (scaled & clamped)
-    const dx = props.dx * this.scaleX;                      // Direction vector X (scaled)
-    const dy = props.dy * this.scaleY;                      // Direction vector Y (scaled)
+    const x = this._clamp(normalizedX * this.scaleX, 0, this.baseWidth * this.scaleX);   // Start X (normalized & scaled)
+    const y = this._clamp(normalizedY * this.scaleY, 0, this.baseHeight * this.scaleY); // Start Y (normalized & scaled)
+    const dx = normalizedDx * this.scaleX;                          // Direction vector X (normalized & scaled)
+    const dy = normalizedDy * this.scaleY;                          // Direction vector Y (normalized & scaled)
     
     // Draw the main arrow line from start point to end point
     this.ctx.beginPath();
@@ -490,12 +542,16 @@ export class VisualizationEngine {
     this.ctx.textBaseline = 'top';                          // Vertical alignment from top
     this.ctx.globalAlpha = props.opacity !== undefined ? props.opacity : 1; // Transparency
 
+    // NORMALIZATION: Convert LLM coordinates to canvas coordinates, then apply responsive scaling
+    const normalizedX = this._normalizeCoordinate(props.x, true);   // Normalize X coordinate
+    const normalizedY = this._normalizeCoordinate(props.y, false);  // Normalize Y coordinate
+    
     // Apply responsive scaling and clamping to text position
-    const x = this._clamp(props.x * this.scaleX, 0, this.baseWidth * this.scaleX);
-    const y = this._clamp(props.y * this.scaleY, 0, this.baseHeight * this.scaleY);
+    const x = this._clamp(normalizedX * this.scaleX, 0, this.baseWidth * this.scaleX);
+    const y = this._clamp(normalizedY * this.scaleY, 0, this.baseHeight * this.scaleY);
     
     // Debug output showing text rendering details
-    if (this.debug) console.log(`📝 Rendering text "${props.text}" at scaled (${x}, ${y}) from (${props.x}, ${props.y})`);
+    if (this.debug) console.log(`📝 Rendering text "${props.text}" at scaled (${x}, ${y}) from normalized (${normalizedX}, ${normalizedY}) from original (${props.x}, ${props.y})`);
     
     // Actually draw the text at calculated position
     this.ctx.fillText(props.text, x, y);
@@ -661,14 +717,20 @@ export class VisualizationEngine {
     this.ctx.lineWidth = props.strokeWidth || 2;            // Line thickness
     this.ctx.globalAlpha = props.opacity !== undefined ? props.opacity : 1; // Transparency
     
+    // NORMALIZATION: Convert LLM coordinates to canvas coordinates, then apply responsive scaling
+    const normalizedX1 = this._normalizeCoordinate(props.x1, true);   // Normalize start X
+    const normalizedY1 = this._normalizeCoordinate(props.y1, false);  // Normalize start Y
+    const normalizedX2 = this._normalizeCoordinate(props.x2, true);   // Normalize end X
+    const normalizedY2 = this._normalizeCoordinate(props.y2, false);  // Normalize end Y
+    
     // Apply responsive scaling and clamping to both line endpoints
-    const x1 = this._clamp(props.x1 * this.scaleX, 0, this.baseWidth * this.scaleX);   // Start X
-    const y1 = this._clamp(props.y1 * this.scaleY, 0, this.baseHeight * this.scaleY); // Start Y  
-    const x2 = this._clamp(props.x2 * this.scaleX, 0, this.baseWidth * this.scaleX);   // End X
-    const y2 = this._clamp(props.y2 * this.scaleY, 0, this.baseHeight * this.scaleY); // End Y
+    const x1 = this._clamp(normalizedX1 * this.scaleX, 0, this.baseWidth * this.scaleX);   // Start X
+    const y1 = this._clamp(normalizedY1 * this.scaleY, 0, this.baseHeight * this.scaleY); // Start Y  
+    const x2 = this._clamp(normalizedX2 * this.scaleX, 0, this.baseWidth * this.scaleX);   // End X
+    const y2 = this._clamp(normalizedY2 * this.scaleY, 0, this.baseHeight * this.scaleY); // End Y
     
     // Debug output showing line coordinates
-    if (this.debug) console.log(`📏 Rendering line scaled (${x1}, ${y1}) -> (${x2}, ${y2}) from (${props.x1}, ${props.y1}) -> (${props.x2}, ${props.y2})`);
+    if (this.debug) console.log(`📏 Rendering line scaled (${x1}, ${y1}) -> (${x2}, ${y2}) from normalized (${normalizedX1}, ${normalizedY1}) -> (${normalizedX2}, ${normalizedY2}) from original (${props.x1}, ${props.y1}) -> (${props.x2}, ${props.y2})`);
 
     // Draw the line
     this.ctx.beginPath();                                   // Start new path
@@ -715,9 +777,144 @@ export class VisualizationEngine {
     this.debug = !!enabled;
   }
 
+  // Configure normalization settings
+  setNormalization(enabled, padding = 20) {
+    this.normalizationEnabled = !!enabled;
+    this.padding = Math.max(0, padding);
+    
+    if (this.debug) {
+      console.log(`📐 Normalization ${enabled ? 'enabled' : 'disabled'}, padding: ${this.padding}px`);
+    }
+    
+    // Recalculate bounds if visualization is loaded
+    if (this.visualization && enabled) {
+      this.normalizationBounds = this._calculateVisualizationBounds(this.visualization);
+    }
+  }
+
   // Utility function to constrain value within min/max bounds
   _clamp(value, min, max) {
     return Math.min(Math.max(value, min), max);
+  }
+
+  // Calculate bounds from visualization data for normalization
+  _calculateVisualizationBounds(vizData) {
+    if (!vizData || !vizData.layers) return null;
+
+    let minX = Infinity, maxX = -Infinity;
+    let minY = Infinity, maxY = -Infinity;
+    
+    // Iterate through all layers and elements to find coordinate bounds
+    for (const layer of vizData.layers) {
+      if (!layer.elements) continue;
+      
+      for (const element of layer.elements) {
+        const props = element.properties || {};
+        
+        // Extract coordinates based on element type
+        switch (element.type) {
+          case 'circle':
+            if (props.x !== undefined && props.y !== undefined && props.r !== undefined) {
+              minX = Math.min(minX, props.x - props.r);
+              maxX = Math.max(maxX, props.x + props.r);
+              minY = Math.min(minY, props.y - props.r);
+              maxY = Math.max(maxY, props.y + props.r);
+            }
+            break;
+            
+          case 'arrow':
+            if (props.x !== undefined && props.y !== undefined) {
+              minX = Math.min(minX, props.x);
+              maxX = Math.max(maxX, props.x);
+              minY = Math.min(minY, props.y);
+              maxY = Math.max(maxY, props.y);
+              
+              // Include arrow end point
+              if (props.dx !== undefined && props.dy !== undefined) {
+                const endX = props.x + props.dx;
+                const endY = props.y + props.dy;
+                minX = Math.min(minX, endX);
+                maxX = Math.max(maxX, endX);
+                minY = Math.min(minY, endY);
+                maxY = Math.max(maxY, endY);
+              }
+            }
+            break;
+            
+          case 'line':
+            if (props.x1 !== undefined && props.y1 !== undefined && 
+                props.x2 !== undefined && props.y2 !== undefined) {
+              minX = Math.min(minX, props.x1, props.x2);
+              maxX = Math.max(maxX, props.x1, props.x2);
+              minY = Math.min(minY, props.y1, props.y2);
+              maxY = Math.max(maxY, props.y1, props.y2);
+            }
+            break;
+            
+          case 'text':
+          case 'label':
+            if (props.x !== undefined && props.y !== undefined) {
+              minX = Math.min(minX, props.x);
+              maxX = Math.max(maxX, props.x);
+              minY = Math.min(minY, props.y);
+              maxY = Math.max(maxY, props.y);
+            }
+            break;
+        }
+      }
+    }
+    
+    // Return null if no valid coordinates found
+    if (minX === Infinity || maxX === -Infinity || minY === Infinity || maxY === -Infinity) {
+      return null;
+    }
+    
+    const bounds = { minX, maxX, minY, maxY, width: maxX - minX, height: maxY - minY };
+    
+    if (this.debug) {
+      console.log('📊 Calculated visualization bounds:', bounds);
+    }
+    
+    return bounds;
+  }
+
+  // Normalize coordinates from LLM data space to canvas space
+  _normalizeCoordinate(value, isX = true) {
+    if (!this.normalizationEnabled || !this.normalizationBounds) {
+      return value; // No normalization - use original value
+    }
+    
+    const bounds = this.normalizationBounds;
+    const padding = this.padding;
+    
+    if (isX) {
+      // Normalize X coordinate
+      if (bounds.width === 0) return this.baseWidth / 2; // Center if no width variation
+      const normalizedX = ((value - bounds.minX) / bounds.width) * (this.baseWidth - 2 * padding) + padding;
+      return normalizedX;
+    } else {
+      // Normalize Y coordinate
+      if (bounds.height === 0) return this.baseHeight / 2; // Center if no height variation
+      const normalizedY = ((value - bounds.minY) / bounds.height) * (this.baseHeight - 2 * padding) + padding;
+      return normalizedY;
+    }
+  }
+
+  // Normalize size/radius values proportionally
+  _normalizeSize(size) {
+    if (!this.normalizationEnabled || !this.normalizationBounds) {
+      return size; // No normalization - use original size
+    }
+    
+    const bounds = this.normalizationBounds;
+    const maxDimension = Math.max(bounds.width, bounds.height);
+    const canvasMaxDimension = Math.max(this.baseWidth, this.baseHeight) - 2 * this.padding;
+    
+    if (maxDimension === 0) return size; // Avoid division by zero
+    
+    // Scale size proportionally to fit in canvas
+    const scaleFactor = canvasMaxDimension / maxDimension;
+    return size * scaleFactor;
   }
 
   // Utility function to parse hex/rgb colors into RGB components
