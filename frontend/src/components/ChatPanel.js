@@ -126,19 +126,7 @@ const ChatPanel = ({
             </div>
           )}
 
-          {/* Loading for pending answers */}
-          {!conversation.answer && conversation.questionTime && (
-            <div className="message assistant-message loading">
-              <div className="message-content">
-                <div className="thinking-dots">
-                  <div className="dot"></div>
-                  <div className="dot"></div>
-                  <div className="dot"></div>
-                </div>
-                <div className="message-text">Analyzing your question and creating visualization...</div>
-              </div>
-            </div>
-          )}
+          {/* No individual loading indicators - use global isLoading instead */}
         </div>
       ));
     }
@@ -168,16 +156,18 @@ const ChatPanel = ({
           <>
             {renderConversationMessages()}
             
-            {/* Loading indicator for new questions */}
+            {/* Single loading indicator for any pending questions */}
             {isLoading && (
               <div className="message assistant-message loading">
                 <div className="message-content">
-                  <div className="thinking-dots">
-                    <div className="dot"></div>
-                    <div className="dot"></div>
-                    <div className="dot"></div>
+                  <div className="analyzing-text">
+                    Analyzing your question and creating visualization
+                    <span className="inline-dots">
+                      <span className="dot"></span>
+                      <span className="dot"></span>
+                      <span className="dot"></span>
+                    </span>
                   </div>
-                  <div className="message-text">Analyzing your question and creating visualization...</div>
                 </div>
               </div>
             )}
