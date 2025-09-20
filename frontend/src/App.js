@@ -14,7 +14,7 @@ function App() {
   const [sseConnection, setSSEConnection] = useState(null);
   const [error, setError] = useState(null);
   const [viewMode, setViewMode] = useState('chat'); // 'chat' or 'history'
-  const [validationEnabled, setValidationEnabled] = useState(true); // Toggle for validation
+  const [validationEnabled, setValidationEnabled] = useState(false); // Toggle for validation - default OFF
   
   // Progress tracking state
   const [processingProgress, setProcessingProgress] = useState({

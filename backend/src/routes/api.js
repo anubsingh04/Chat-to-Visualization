@@ -19,7 +19,7 @@ router.post('/questions', async (req, res) => {
     }
 
     // Extract validation preference from options
-    const validationEnabled = options.validation !== false; // Default to true
+    const validationEnabled = options.validation === true; // Default to false (OFF)
     console.log(`🔍 Validation ${validationEnabled ? 'ENABLED' : 'DISABLED'} for question: ${question}`);
 
     // Create and save question

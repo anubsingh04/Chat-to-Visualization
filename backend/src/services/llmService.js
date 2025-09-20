@@ -18,7 +18,7 @@ class LLMService {
   }
 
   async generateExplanationAndVisualization(question, options = {}) {
-    const { onProgress, validation = true } = options; // Default validation to true
+    const { onProgress, validation = false } = options; // Default validation to false (OFF)
     console.log(`🔍 Validation ${validation ? 'enabled' : 'disabled'} for LLM generation`);
     
     const systemPrompt = `You are an expert science educator with access to an advanced visualization engine. Create engaging explanations and stunning visualizations for any scientific question.
