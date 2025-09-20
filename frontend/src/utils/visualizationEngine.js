@@ -998,6 +998,57 @@ export class VisualizationEngine {
             }
             break;
         }
+        
+        // NEW: Check animation bounds to prevent clipping during movement
+        if (element.animations && Array.isArray(element.animations)) {
+          for (const animation of element.animations) {
+            if (!animation) continue;
+            
+            // Handle position animations (x, y movements)
+            if (animation.property === 'x' && animation.to !== undefined) {
+              const animEndX = animation.to;
+              const radius = props.r || 0;
+              minX = Math.min(minX, animEndX - radius);
+              maxX = Math.max(maxX, animEndX + radius);
+            }
+            
+            if (animation.property === 'y' && animation.to !== undefined) {
+              const animEndY = animation.to;
+              const radius = props.r || 0;
+              minY = Math.min(minY, animEndY - radius);
+              maxY = Math.max(maxY, animEndY + radius);
+            }
+            
+            // Handle orbital animations
+            if (animation.property === 'orbit') {
+              const centerX = animation.centerX ?? props.x ?? 0;
+              const centerY = animation.centerY ?? props.y ?? 0;
+              const radius = animation.radius ?? 0;
+              const elementRadius = props.r || 0;
+              
+              // Orbit creates a circle around center, so expand bounds to include full orbit
+              minX = Math.min(minX, centerX - radius - elementRadius);
+              maxX = Math.max(maxX, centerX + radius + elementRadius);
+              minY = Math.min(minY, centerY - radius - elementRadius);
+              maxY = Math.max(maxY, centerY + radius + elementRadius);
+            }
+            
+            // Handle scale animations - elements might grow larger
+            if (animation.property === 'scale' && animation.to !== undefined) {
+              const scaleFactor = Math.max(1, animation.to); // Only expand bounds, don't shrink
+              const radius = (props.r || 0) * scaleFactor;
+              const halfWidth = (props.width || 0) * scaleFactor / 2;
+              const halfHeight = (props.height || 0) * scaleFactor / 2;
+              
+              if (props.x !== undefined && props.y !== undefined) {
+                minX = Math.min(minX, props.x - Math.max(radius, halfWidth));
+                maxX = Math.max(maxX, props.x + Math.max(radius, halfWidth));
+                minY = Math.min(minY, props.y - Math.max(radius, halfHeight));
+                maxY = Math.max(maxY, props.y + Math.max(radius, halfHeight));
+              }
+            }
+          }
+        }
       }
     }
     
@@ -1006,10 +1057,17 @@ export class VisualizationEngine {
       return null;
     }
     
+    // Add extra padding to ensure animations don't get clipped at edges
+    const extraPadding = 20;
+    minX -= extraPadding;
+    maxX += extraPadding;
+    minY -= extraPadding;
+    maxY += extraPadding;
+    
     const bounds = { minX, maxX, minY, maxY, width: maxX - minX, height: maxY - minY };
     
     if (this.debug) {
-      console.log('📊 Calculated visualization bounds:', bounds);
+      console.log('📊 Calculated visualization bounds (including animations):', bounds);
     }
     
     return bounds;

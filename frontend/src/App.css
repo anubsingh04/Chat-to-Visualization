@@ -245,7 +245,7 @@ body::before {
   border: 1px solid rgba(255, 255, 255, 0.18);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
   position: relative;
-  overflow: hidden;
+  overflow: auto; /* Allow scrolling when content overflows */
   animation: slideInLeft 0.8s cubic-bezier(0.4, 0, 0.2, 1);
   min-height: 0;
 }
@@ -407,6 +407,17 @@ body::before {
     padding: 16px;
     gap: 16px;
     grid-template-rows: 300px 1fr;
+  }
+  
+  .visualization-section {
+    /* Enable better touch scrolling on mobile */
+    -webkit-overflow-scrolling: touch;
+    /* Adjust radius for mobile */
+    border-radius: 16px;
+  }
+  
+  .chat-section {
+    border-radius: 16px;
   }
   
   .app-footer {

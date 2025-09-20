@@ -471,10 +471,31 @@
 
 .visualization-canvas-container {
   border-radius: 8px;
-  overflow: hidden;
+  overflow: auto; /* Enable scrolling for overflowing content */
   background: rgba(255, 255, 255, 0.5);
   min-height: 300px;
   max-height: 500px;
+  /* Add custom scrollbar styling for consistency */
+}
+
+/* Custom scrollbar for visualization canvas container */
+.visualization-canvas-container::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.visualization-canvas-container::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+}
+
+.visualization-canvas-container::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+  border-radius: 4px;
+}
+
+.visualization-canvas-container::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(135deg, #2980b9 0%, #21618c 100%);
 }
 
 @keyframes slideDown {

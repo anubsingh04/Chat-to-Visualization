@@ -22,8 +22,8 @@
 
 /* Custom scrollbar styling for better UX */
 .canvas-wrapper::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 4px;
+  height: 4px;
 }
 
 .canvas-wrapper::-webkit-scrollbar-track {
@@ -46,11 +46,13 @@
   background: white;
   display: block;
   flex-shrink: 0; /* Prevent canvas from shrinking */
-  /* Center the canvas using margins when there's space */
-  margin: 0 auto;
   /* Ensure minimum size to trigger scrolling when needed */
   min-width: 800px;
   min-height: 400px;
+  /* Center the canvas when there's extra space, but allow scrolling when container is smaller */
+  margin: 0 auto;
+  /* Add some margin when scrolling is needed */
+  box-sizing: border-box;
 }
 
 .visualization-controls {
@@ -237,6 +239,14 @@
     padding: 10px;
   }
   
+  .visualization-canvas {
+    /* On mobile, allow the canvas to be smaller but maintain scrolling when needed */
+    min-width: 320px; /* Smaller minimum for mobile devices */
+    min-height: 240px;
+    /* Ensure horizontal scrolling is smooth on touch devices */
+    -webkit-overflow-scrolling: touch;
+  }
+  
   .visualization-controls {
     padding: 12px 16px;
     flex-wrap: wrap;
@@ -345,4 +355,49 @@
 /* Canvas wrapper needs relative positioning for status indicator */
 .canvas-wrapper {
   position: relative;
+}
+
+/* Fullscreen notification styles */
+.fullscreen-notification {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+  z-index: 999;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  max-width: calc(100% - 32px);
+  text-align: center;
+  user-select: none;
+}
+
+.fullscreen-notification:hover {
+  transform: translateX(-50%) translateY(-2px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+}
+
+/* Responsive adjustments for fullscreen notification */
+@media (max-width: 480px) {
+  .fullscreen-notification {
+    font-size: 11px;
+    padding: 6px 12px;
+    max-width: calc(100% - 20px);
+  }
+}
+
+@media (max-width: 320px) {
+  .fullscreen-notification {
+    font-size: 10px;
+    padding: 5px 10px;
+  }
 }

@@ -9,12 +9,9 @@ const VisualizationCanvas = ({ visualization, onPlayStateChange }) => {
   const [progress, setProgress] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [renderError, setRenderError] = useState(null);
-  const [isLooping, setIsLooping] = useState(true); // Enable looping by default
-  const [isFullscreen, setIsFullscreen] = useState(false); // Fullscreen state
-  // Debug overlay removed per request; showDebug state removed
+  const [isLooping, setIsLooping] = useState(true); 
+  const [isFullscreen, setIsFullscreen] = useState(false); 
   const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 });
-
-  // Track a pending visualization if it arrives before engine init
   const pendingVizRef = useRef(null);
 
   useEffect(() => {
@@ -105,11 +102,29 @@ const VisualizationCanvas = ({ visualization, onPlayStateChange }) => {
       
       try {
         console.log('VisualizationCanvas: Loading visualization into engine...');
-  engineRef.current.loadVisualization(visualization);
-  setProgress(0);
-  // Auto-play new visualization
-  engineRef.current.play();
-  setIsPlaying(true);
+        engineRef.current.loadVisualization(visualization);
+        
+        // Calculate required canvas size based on visualization bounds to prevent clipping
+        const bounds = engineRef.current.normalizationBounds;
+        if (bounds && engineRef.current.normalizationEnabled) {
+          // Calculate required canvas dimensions with padding
+          const padding = 40; // Extra padding for safety
+          const requiredWidth = Math.max(800, bounds.width + padding * 2);
+          const requiredHeight = Math.max(600, bounds.height + padding * 2);
+          
+          // Update canvas size if needed to prevent clipping
+          if (requiredWidth > canvasSize.width || requiredHeight > canvasSize.height) {
+            const newWidth = Math.max(canvasSize.width, requiredWidth);
+            const newHeight = Math.max(canvasSize.height, requiredHeight);
+            console.log(`Expanding canvas to ${newWidth}x${newHeight} to prevent animation clipping`);
+            setCanvasSize({ width: newWidth, height: newHeight });
+          }
+        }
+        
+        setProgress(0);
+        // Auto-play new visualization
+        engineRef.current.play();
+        setIsPlaying(true);
         
         console.log('VisualizationCanvas: Visualization loaded successfully');
         setIsLoading(false);
@@ -129,7 +144,7 @@ const VisualizationCanvas = ({ visualization, onPlayStateChange }) => {
     } else {
       console.log('VisualizationCanvas: No visualization data or engine not ready');
     }
-  }, [visualization, onPlayStateChange]);
+  }, [visualization, canvasSize.width, canvasSize.height, onPlayStateChange]);
 
   const handlePlay = () => {
     if (!engineRef.current || !visualization) {
@@ -361,13 +376,29 @@ const VisualizationCanvas = ({ visualization, onPlayStateChange }) => {
           transition: 'all 0.3s ease'
         }}
       >
+        {/* Fullscreen Mode Notification - Only show when not in fullscreen */}
+        {!isFullscreen && visualization && (
+          <div 
+            className="fullscreen-notification"
+            onClick={handleFullscreenToggle}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+          >
+            <span>🔍</span>
+            <span>For complete animation view, click here for fullscreen mode</span>
+          </div>
+        )}
+        
         <canvas 
           ref={canvasRef} 
           className="visualization-canvas" 
           style={{
             width: isFullscreen ? '100%' : 'auto',
             height: isFullscreen ? '100%' : 'auto',
-            objectFit: isFullscreen ? 'contain' : 'initial'
+            objectFit: isFullscreen ? 'contain' : 'contain'
           }}
         />
         
