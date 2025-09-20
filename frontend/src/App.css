@@ -600,6 +600,7 @@ textarea:focus {
 .validation-toggle {
   display: flex;
   align-items: center;
+  position: relative;
 }
 
 .toggle-label {
@@ -652,6 +653,160 @@ textarea:focus {
 .toggle-text {
   font-weight: 600;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+/* Tooltip */
+.tooltip {
+  position: relative;
+  margin-left: 8px;
+}
+
+.tooltip-icon {
+  font-size: 16px;
+  cursor: help;
+  opacity: 0.7;
+  transition: opacity 0.3s ease;
+}
+
+.tooltip-icon:hover {
+  opacity: 1;
+}
+
+.tooltip-content {
+  visibility: hidden;
+  opacity: 0;
+  position: absolute;
+  top: 100%;
+  right: 0;
+  transform: translateY(0);
+  margin-top: 8px;
+  background: rgba(0, 0, 0, 0.9);
+  color: white;
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.4;
+  width: 280px;
+  max-width: calc(100vw - 40px); /* Ensure it never goes beyond viewport */
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  transition: all 0.3s ease;
+  pointer-events: none;
+}
+
+/* Arrow pointing up to the icon */
+.tooltip-content::after {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  right: 20px;
+  border: 6px solid transparent;
+  border-bottom-color: rgba(0, 0, 0, 0.9);
+}
+
+.tooltip:hover .tooltip-content {
+  visibility: visible;
+  opacity: 1;
+  transform: translateY(8px);
+}
+
+/* Responsive tooltip positioning - Stack from largest to smallest screens */
+@media (max-width: 1024px) {
+  .tooltip-content {
+    width: 260px;
+    right: -20px;
+  }
+}
+
+@media (max-width: 768px) {
+  .tooltip-content {
+    width: 240px;
+    right: -60px;
+    font-size: 12px;
+    padding: 10px;
+  }
+  
+  .tooltip-content::after {
+    bottom: 100%;
+    top: auto;
+    right: 80px;
+    border: 6px solid transparent;
+    border-bottom-color: rgba(0, 0, 0, 0.9);
+    border-top-color: transparent;
+  }
+}
+
+@media (max-width: 600px) {
+  .tooltip-content {
+    width: 220px;
+    right: -90px;
+  }
+  
+  .tooltip-content::after {
+    bottom: 100%;
+    top: auto;
+    right: 110px;
+    border: 6px solid transparent;
+    border-bottom-color: rgba(0, 0, 0, 0.9);
+    border-top-color: transparent;
+  }
+}
+
+@media (max-width: 480px) {
+  .tooltip-content {
+    width: 200px;
+    right: -100px;
+    font-size: 11px;
+    padding: 8px;
+  }
+  
+  .tooltip-content::after {
+    bottom: 100%;
+    top: auto;
+    right: 120px;
+    border: 6px solid transparent;
+    border-bottom-color: rgba(0, 0, 0, 0.9);
+    border-top-color: transparent;
+  }
+}
+
+/* For very small screens, flip to left side */
+@media (max-width: 380px) {
+  .tooltip-content {
+    right: auto;
+    left: -160px;
+    width: 180px;
+  }
+  
+  .tooltip-content::after {
+    bottom: 100%;
+    top: auto;
+    right: auto;
+    left: 170px;
+    border: 6px solid transparent;
+    border-bottom-color: rgba(0, 0, 0, 0.9);
+    border-top-color: transparent;
+  }
+}
+
+/* Extra small screens */
+@media (max-width: 320px) {
+  .tooltip-content {
+    left: -140px;
+    width: 160px;
+    font-size: 10px;
+    padding: 6px;
+  }
+  
+  .tooltip-content::after {
+    bottom: 100%;
+    top: auto;
+    left: 150px;
+    border: 6px solid transparent;
+    border-bottom-color: rgba(0, 0, 0, 0.9);
+    border-top-color: transparent;
+  }
 }
 
 /* View Mode Buttons */

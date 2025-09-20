@@ -476,7 +476,10 @@ function App() {
         <div className="header-controls">
           {/* Validation Toggle */}
           <div className="validation-toggle">
-            <label className="toggle-label">
+            <label 
+              className="toggle-label"
+              title="Enable AI validation to improve response quality using a secondary AI model. When enabled, responses take longer but are more accurate and better formatted. When disabled, responses are faster but may have minor formatting issues."
+            >
               <input
                 type="checkbox"
                 checked={validationEnabled}
@@ -488,6 +491,16 @@ function App() {
                  AI Validation {validationEnabled ? 'ON' : 'OFF'}
               </span>
             </label>
+            <div className="tooltip">
+              <span className="tooltip-icon">ℹ️</span>
+              <div className="tooltip-content">
+                <strong>AI Validation</strong>
+                <br />
+                <strong>ON:</strong> Uses a secondary AI to check and improve responses. Higher quality but slower.
+                <br />
+                <strong>OFF:</strong> Faster responses directly from the primary AI. Good quality but no validation.
+              </div>
+            </div>
           </div>
           
           {/* View Mode Buttons */}
