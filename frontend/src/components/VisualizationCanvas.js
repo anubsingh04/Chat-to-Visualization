@@ -18,16 +18,16 @@ const VisualizationCanvas = ({ visualization, onPlayStateChange }) => {
   const pendingVizRef = useRef(null);
 
   useEffect(() => {
-    console.log('🚀 VisualizationCanvas: Initializing canvas (synchronous)...');
+    console.log('VisualizationCanvas: Initializing canvas (synchronous)...');
   const canvas = canvasRef.current;
     if (!canvas) {
-      console.warn('❌ Canvas element not found at init');
+      console.warn('Canvas element not found at init');
       return () => {};
     }
 
     const ctx = canvas.getContext('2d');
     if (!ctx) {
-      console.error('❌ Could not obtain 2D context');
+      console.error('Could not obtain 2D context');
       return () => {};
     }
 
@@ -37,12 +37,12 @@ const VisualizationCanvas = ({ visualization, onPlayStateChange }) => {
   canvas.style.width = canvasSize.width + 'px';
   canvas.style.height = canvasSize.height + 'px';
       engineRef.current = new VisualizationEngine(canvas, ctx);
-      engineRef.current.setLoop(isLooping); // Set initial loop state
-      console.log('✅ Engine created with looping:', isLooping);
+      engineRef.current.setLoop(isLooping); 
+      console.log('Engine created with looping:', isLooping);
 
       // If a visualization was queued, load it now
       if (pendingVizRef.current) {
-        console.log('📦 Loading pending visualization after init');
+        console.log('Loading pending visualization after init');
         setIsLoading(true);
         engineRef.current.loadVisualization(pendingVizRef.current);
         engineRef.current.play();
@@ -50,7 +50,7 @@ const VisualizationCanvas = ({ visualization, onPlayStateChange }) => {
         setIsLoading(false);
         pendingVizRef.current = null;
       } else if (visualization) {
-        console.log('🔄 Loading initial visualization present at mount');
+        console.log('Loading initial visualization present at mount');
         setIsLoading(true);
         engineRef.current.loadVisualization(visualization);
         engineRef.current.play();
@@ -58,15 +58,15 @@ const VisualizationCanvas = ({ visualization, onPlayStateChange }) => {
         setIsLoading(false);
       } else {
         // No demo - wait for user to provide visualization
-        console.log('⏳ Canvas ready - waiting for visualization data');
+        console.log('Canvas ready - waiting for visualization data');
       }
     } catch (err) {
-      console.error('❌ Engine init error:', err);
+      console.error('Engine init error:', err);
       setRenderError(err.message);
     }
 
     return () => {
-      console.log('🧹 VisualizationCanvas: Cleaning up...');
+      console.log('VisualizationCanvas: Cleaning up...');
       if (engineRef.current) engineRef.current.pause();
     };
   }, [canvasSize.width, canvasSize.height]);
@@ -99,35 +99,35 @@ const VisualizationCanvas = ({ visualization, onPlayStateChange }) => {
 
   useEffect(() => {
     if (visualization && engineRef.current) {
-      console.log('🎬 VisualizationCanvas: Received new visualization data:', visualization);
+      console.log('VisualizationCanvas: Received new visualization data:', visualization);
       setIsLoading(true);
       setRenderError(null);
       
       try {
-        console.log('🔄 VisualizationCanvas: Loading visualization into engine...');
+        console.log('VisualizationCanvas: Loading visualization into engine...');
   engineRef.current.loadVisualization(visualization);
   setProgress(0);
   // Auto-play new visualization
   engineRef.current.play();
   setIsPlaying(true);
         
-        console.log('✅ VisualizationCanvas: Visualization loaded successfully');
+        console.log('VisualizationCanvas: Visualization loaded successfully');
         setIsLoading(false);
         
         if (onPlayStateChange) {
           onPlayStateChange(true);
         }
       } catch (error) {
-        console.error('❌ VisualizationCanvas: Error loading visualization:', error);
+        console.error('VisualizationCanvas: Error loading visualization:', error);
         setRenderError(error.message);
         setIsLoading(false);
       }
     } else if (visualization && !engineRef.current) {
-      console.warn('⚠️ VisualizationCanvas: Received visualization before engine init; queuing');
+      console.warn('VisualizationCanvas: Received visualization before engine init; queuing');
       pendingVizRef.current = visualization;
       setIsLoading(true); // will be cleared after init loads it
     } else {
-      console.log('🔄 VisualizationCanvas: No visualization data or engine not ready');
+      console.log('VisualizationCanvas: No visualization data or engine not ready');
     }
   }, [visualization, onPlayStateChange]);
 
@@ -282,13 +282,13 @@ const VisualizationCanvas = ({ visualization, onPlayStateChange }) => {
     console.log('🧪 Testing canvas rendering...');
     const canvas = canvasRef.current;
     if (!canvas) {
-      console.error('❌ Canvas not found for test');
+      console.error('Canvas not found for test');
       return;
     }
     
     const ctx = canvas.getContext('2d');
     if (!ctx) {
-      console.error('❌ Context not found for test');
+      console.error('Context not found for test');
       return;
     }
     

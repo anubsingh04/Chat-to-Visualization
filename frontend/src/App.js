@@ -1,9 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ChatPanel from './components/ChatPanel';
 import ChatHistory from './components/ChatHistory';
 import VisualizationCanvas from './components/VisualizationCanvas';
-import ModularVisualizationCanvas from './components/ModularVisualizationCanvas';
-import AdvancedVisualizationDemo from './components/AdvancedVisualizationDemo';
 import ApiService from './services/apiService';
 import './App.css';
 
@@ -15,7 +13,16 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [sseConnection, setSSEConnection] = useState(null);
   const [error, setError] = useState(null);
-  const [viewMode, setViewMode] = useState('chat'); // 'chat', 'history', or 'demo'
+  const [viewMode, setViewMode] = useState('chat'); // 'chat' or 'history'
+  const [validationEnabled, setValidationEnabled] = useState(true); // Toggle for validation
+  
+  // Progress tracking state
+  const [processingProgress, setProcessingProgress] = useState({
+    isProcessing: false,
+    stage: '',
+    message: '',
+    questionId: null
+  });
 
   // Refs for animations
   const appRef = useRef(null);
@@ -26,7 +33,7 @@ function App() {
   const userId = 'user_' + Math.random().toString(36).substr(2, 9);
 
   useEffect(() => {
-    console.log('🚀 Initializing Chat-to-Viz App');
+    console.log('Initializing Chat-to-Viz App');
     
     // Add entrance animation classes
     if (headerRef.current) {
@@ -40,37 +47,37 @@ function App() {
 
     try {
       // Initialize SSE connection
-      console.log('🔄 Creating SSE connection...');
+      console.log('Creating SSE connection...');
       const eventSource = ApiService.createSSEConnection(
         handleSSEMessage,
         handleSSEError
       );
       
       setSSEConnection(eventSource);
-      console.log('✅ SSE connection created');
+      console.log('SSE connection created');
       
       // Test connection
-      console.log('🏥 Testing backend connection...');
+      console.log('Testing backend connection...');
       ApiService.healthCheck()
         .then(() => {
           setIsConnected(true);
-          console.log('✅ Connected to backend');
+          console.log('Connected to backend');
         })
         .catch((error) => {
-          console.error('❌ Backend connection failed:', error);
+          console.error('Backend connection failed:', error);
           setIsConnected(false);
           // Don't set error state for connection issues, just log them
         });
 
       // Cleanup on unmount
       return () => {
-        console.log('🧹 Cleaning up SSE connection');
+        console.log('Cleaning up SSE connection');
         if (eventSource) {
           eventSource.close();
         }
       };
     } catch (err) {
-      console.error('❌ Error initializing app:', err);
+      console.error('Error initializing app:', err);
       setError(err.message);
     }
   }, []);
@@ -79,7 +86,7 @@ function App() {
   useEffect(() => {
     const loadConversations = async () => {
       try {
-        console.log('📚 Loading conversation history...');
+        console.log('Loading conversation history...');
         const questions = await ApiService.getQuestions();
         
         const conversationPromises = questions.map(async (question) => {
@@ -108,9 +115,9 @@ function App() {
 
         const loadedConversations = await Promise.all(conversationPromises);
         setConversations(loadedConversations.reverse()); // Most recent first
-        console.log('✅ Loaded', loadedConversations.length, 'conversations');
+        console.log('Loaded', loadedConversations.length, 'conversations');
       } catch (error) {
-        console.error('❌ Failed to load conversations:', error);
+        console.error('Failed to load conversations:', error);
       }
     };
 
@@ -121,18 +128,24 @@ function App() {
 
   const handleSSEMessage = (data) => {
     try {
-      console.log('📨 SSE Message received in App:', data);
+      console.log('SSE Message received in App:', data);
       
       switch (data.type) {
         case 'connected':
-          console.log('🔗 SSE connection confirmed');
+          console.log('SSE connection confirmed');
           setIsConnected(true);
           break;
           
-        case 'question_created':
+        case 'question_received':
           console.log('❓ Question created event received');
-          // Add question to messages
-          const questionMessage = {
+          setProcessingProgress({
+            isProcessing: true,
+            stage: 'received',
+            message: 'Question received, initializing processing...',
+            questionId: data.questionId
+          });
+
+           const questionMessage = {
             type: 'user',
             text: data.question.question,
             timestamp: new Date(data.question.createdAt)
@@ -152,9 +165,83 @@ function App() {
           setConversations(prev => [newConversation, ...prev]);
           break;
           
+        case 'processing_started':
+          setProcessingProgress(prev => ({
+            ...prev,
+            stage: 'started',
+            message: 'AI analysis started...'
+          }));
+          break;
+          
+        case 'processing_progress':
+          setProcessingProgress(prev => ({
+            ...prev,
+            stage: 'llm_generation',
+            message: 'Generating explanation and visualization...'
+          }));
+          break;
+          
+        case 'validation_started':
+          console.log('🔍 Validation started event received');
+          setProcessingProgress(prev => ({
+            ...prev,
+            stage: 'validation',
+            message: 'Validating and optimizing response...'
+          }));
+          break;
+          
+        case 'validation_completed':
+          console.log('✅ Validation completed event received');
+          setProcessingProgress(prev => ({
+            ...prev,
+            stage: 'finalizing',
+            message: 'Finalizing visualization...'
+          }));
+          break;
+          
+        case 'processing_complete':
+          console.log('🎉 Processing complete event received');
+          setIsLoading(false); // Hide the loader immediately
+          setProcessingProgress({
+            isProcessing: false,
+            stage: 'complete', 
+            message: 'Visualization ready!',
+            questionId: null
+          });
+          break;
+          
+        // case 'question_created':
+        //   console.log('Question created event received');
+        //   // Add question to messages
+        //   const questionMessage = {
+        //     type: 'user',
+        //     text: data.question.question,
+        //     timestamp: new Date(data.question.createdAt)
+        //   };
+        //   setMessages(prev => [...prev, questionMessage]);
+          
+        //   // Add to conversations (without answer yet)
+        //   const newConversation = {
+        //     id: data.question.id,
+        //     question: data.question.question,
+        //     answer: null,
+        //     visualization: null,
+        //     questionTime: data.question.createdAt,
+        //     answerTime: null,
+        //     userId: data.question.userId
+        //   };
+        //   setConversations(prev => [newConversation, ...prev]);
+        //   break;
+          
         case 'answer_created':
-          console.log('💡 Answer created event received');
+          console.log('Answer created event received');
           setIsLoading(false);
+          setProcessingProgress({
+            isProcessing: false,
+            stage: 'complete',
+            message: 'Visualization ready!',
+            questionId: null
+          });
           
           // Add answer to messages
           const answerMessage = {
@@ -177,27 +264,39 @@ function App() {
               : conv
           ));
           
-          console.log('🎬 Visualization updated:', data.answer.visualization);
+          console.log('Visualization updated:', data.answer.visualization);
           break;
           
         case 'heartbeat':
-          console.log('💓 Heartbeat received');
+          console.log('Heartbeat received');
           break;
           
         case 'conversations_cleared':
-          console.log('🗑️ Conversations cleared event received');
+          console.log('Conversations cleared event received');
           // Clear all frontend state when notified by server
           setMessages([]);
           setConversations([]);
           setCurrentVisualization(null);
-          console.log('✅ Frontend state cleared via SSE');
+          console.log('Frontend state cleared via SSE');
+          break;
+          
+        case 'error':
+          console.error('SSE Error:', data.message);
+          setError(data.message);
+          setIsLoading(false);
+          setProcessingProgress({
+            isProcessing: false,
+            stage: 'error',
+            message: 'An error occurred during processing',
+            questionId: null
+          });
           break;
           
         default:
-          console.log('❓ Unknown SSE message type:', data.type);
+          console.log('Unknown SSE message type:', data.type);
       }
     } catch (err) {
-      console.error('❌ Error handling SSE message:', err);
+      console.error('Error handling SSE message:', err);
     }
   };
 
@@ -209,19 +308,22 @@ function App() {
   const handleSendMessage = async (message) => {
     if (isLoading) return;
     
-    console.log('📤 Sending message:', message);
+    console.log('Sending message:', message);
+    console.log('Validation enabled:', validationEnabled);
     setIsLoading(true);
     
     try {
-      // Submit question to backend
-      const response = await ApiService.submitQuestion(userId, message);
-      console.log('✅ Question submitted successfully:', response);
+      // Submit question to backend with validation preference
+      const response = await ApiService.submitQuestion(userId, message, { 
+        validation: validationEnabled 
+      });
+      console.log('Question submitted successfully:', response);
       
       // The SSE will handle adding the question and answer to the UI
       // No need to update state here as it will be done via SSE
       
     } catch (error) {
-      console.error('❌ Error sending message:', error);
+      console.error('Error sending message:', error);
       setIsLoading(false);
       
       // Add error message to chat
@@ -240,8 +342,8 @@ function App() {
 
   // Handle visualization change when user clicks view button
   const handleVisualizationChange = (visualization, conversation) => {
-    console.log('🎬 User clicked to view visualization for:', conversation?.question);
-    console.log('📊 Setting visualization:', visualization);
+    console.log('User clicked to view visualization for:', conversation?.question);
+    console.log('Setting visualization:', visualization);
     
     // Add CSS animation class for visualization change
     if (contentRef.current) {
@@ -259,7 +361,7 @@ function App() {
 
   // Handle clearing all chat conversations and messages
   const handleClearChat = async () => {
-    console.log('🗑️ Clearing all conversations and messages');
+    console.log('Clearing all conversations and messages');
     
     try {
       // Add CSS animation class for clear action
@@ -271,19 +373,19 @@ function App() {
       }
       
       // Clear from backend storage first
-      console.log('🗑️ Clearing backend data...');
+      console.log('Clearing backend data...');
       await ApiService.clearAllConversations(userId);
-      console.log('✅ Backend data cleared successfully');
+      console.log('Backend data cleared successfully');
       
       // Clear all frontend state
       setMessages([]);
       setConversations([]);
       setCurrentVisualization(null);
       
-      console.log('✅ Frontend state cleared successfully');
+      console.log('Frontend state cleared successfully');
       
     } catch (error) {
-      console.error('❌ Error clearing conversations:', error);
+      console.error('Error clearing conversations:', error);
       
       // Still clear frontend state even if backend call fails
       setMessages([]);
@@ -372,17 +474,36 @@ function App() {
         <h1>Chat-to-Visualization</h1>
         
         <div className="header-controls">
-          {/* View Mode Dropdown */}
-          <div className="view-dropdown">
-            <select 
-              value={viewMode} 
-              onChange={(e) => handleViewModeChange(e.target.value)}
-              className="view-selector"
+          {/* Validation Toggle */}
+          <div className="validation-toggle">
+            <label className="toggle-label">
+              <input
+                type="checkbox"
+                checked={validationEnabled}
+                onChange={(e) => setValidationEnabled(e.target.checked)}
+                className="toggle-input"
+              />
+              <span className="toggle-slider"></span>
+              <span className="toggle-text">
+                 AI Validation {validationEnabled ? 'ON' : 'OFF'}
+              </span>
+            </label>
+          </div>
+          
+          {/* View Mode Buttons */}
+          <div className="view-buttons">
+            <button
+              className={`view-btn ${viewMode === 'chat' ? 'active' : ''}`}
+              onClick={() => handleViewModeChange('chat')}
             >
-              <option value="chat">💬 Chat Mode</option>
-              <option value="history">📚 History ({conversations.length} conversations)</option>
-              <option value="demo">🎨 Advanced Demo</option>
-            </select>
+               Chat
+            </button>
+            <button
+              className={`view-btn ${viewMode === 'history' ? 'active' : ''}`}
+              onClick={() => handleViewModeChange('history')}
+            >
+               History ({conversations.length})
+            </button>
           </div>
         </div>
       </div>
@@ -391,7 +512,7 @@ function App() {
         {viewMode === 'chat' ? (
           <>
             <div className="visualization-section">
-              {console.log('🎬 App.js - Current visualization:', currentVisualization)}
+              {console.log('App.js - Current visualization:', currentVisualization)}
               <VisualizationCanvas 
                 visualization={currentVisualization}
                 onPlayStateChange={handleVisualizationPlayStateChange}
@@ -407,20 +528,17 @@ function App() {
                 onClearChat={handleClearChat}
                 isConnected={isConnected}
                 isLoading={isLoading}
+                processingProgress={processingProgress}
               />
             </div>
           </>
-        ) : viewMode === 'history' ? (
+        ) : (
           <div className="history-section">
             <ChatHistory
               conversations={conversations}
               isLoading={isLoading}
               autoPlayEnabled={true}
             />
-          </div>
-        ) : (
-          <div className="demo-section">
-            <AdvancedVisualizationDemo />
           </div>
         )}
       </div>

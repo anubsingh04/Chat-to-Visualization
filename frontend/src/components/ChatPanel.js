@@ -7,8 +7,9 @@ const ChatPanel = ({
   onSendMessage, 
   isConnected, 
   isLoading,
-  onVisualizationChange, // Callback when user clicks to view a visualization
-  onClearChat // Callback to clear all conversations and messages
+  processingProgress = { isProcessing: false, stage: '', message: '' },
+  onVisualizationChange, 
+  onClearChat 
 }) => {
   const [inputValue, setInputValue] = useState('');
   const [showConfirmation, setShowConfirmation] = useState(false);
@@ -130,7 +131,7 @@ const ChatPanel = ({
           <div className="message user-message">
             <div className="message-content">
               <div className="message-text">{conversation.question}</div>
-              <div className="message-time">{formatTime(conversation.questionTime)}</div>
+              {/* <div className="message-time">{formatTime(conversation.questionTime)}</div> */}
             </div>
           </div>
 
@@ -139,7 +140,7 @@ const ChatPanel = ({
             <div className="message assistant-message">
               <div className="message-content">
                 <div className="message-text">{conversation.answer}</div>
-                <div className="message-time">{formatTime(conversation.answerTime)}</div>
+                {/* <div className="message-time">{formatTime(conversation.answerTime)}</div> */}
                 
                 {/* Visualization Button */}
                 {conversation.visualization && (
@@ -167,7 +168,7 @@ const ChatPanel = ({
       <div key={index} className={`message ${message.type}-message`}>
         <div className="message-content">
           <div className="message-text">{message.text}</div>
-          <div className="message-time">{formatTime(message.timestamp)}</div>
+          {/* <div className="message-time">{formatTime(message.timestamp)}</div> */}
         </div>
       </div>
     ));
@@ -196,18 +197,23 @@ const ChatPanel = ({
           <>
             {renderConversationMessages()}
             
-            {/* Single loading indicator for any pending questions */}
-            {isLoading && (
+            {/* Dynamic loading indicator with progress stages using state */}
+            {(isLoading || processingProgress.isProcessing) && (
               <div className="message assistant-message loading">
                 <div className="message-content">
                   <div className="analyzing-text">
-                    Analyzing your question and creating visualization
+                    {processingProgress.message || 'Analyzing your question and creating visualization'}
                     <span className="inline-dots">
                       <span className="dot"></span>
                       <span className="dot"></span>
                       <span className="dot"></span>
                     </span>
                   </div>
+                  {processingProgress.stage && (
+                    <div className="progress-stage">
+                      Stage: {processingProgress.stage}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -215,7 +221,7 @@ const ChatPanel = ({
         ) : (
           <div className="welcome-message">
             <div className="welcome-content">
-              <h3>👋 Welcome to AI Science Tutor!</h3>
+              <h3> Welcome to AI Science Tutor!</h3>
               <p>Ask me any science question and I'll explain it with both text and interactive visualizations.</p>
               <p className="sync-hint">💡 <strong>Scroll through your questions to see different visualizations automatically!</strong></p>
               

@@ -399,9 +399,11 @@
 .welcome-message {
   display: flex;
   justify-content: center;
-  align-items: center;
-  height: 100%;
+  align-items: flex-start;
+  min-height: 100%;
   text-align: center;
+  padding-top: 10px; 
+  box-sizing: border-box;
 }
 
 .welcome-content {
@@ -579,6 +581,15 @@
   font-size: 15px;
   font-weight: 500;
   line-height: 1.6;
+}
+
+.progress-stage {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+  margin-top: 4px;
+  font-style: italic;
+  opacity: 0.8;
+  letter-spacing: 0.5px;
 }
 
 .inline-dots {

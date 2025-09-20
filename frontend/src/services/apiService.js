@@ -14,11 +14,12 @@ class ApiService {
   }
 
   // Submit a new question
-  async submitQuestion(userId, question) {
+  async submitQuestion(userId, question, options = {}) {
     try {
       const response = await this.api.post('/api/questions', {
         userId,
-        question
+        question,
+        options // Include options like validation preference
       });
       return response.data;
     } catch (error) {

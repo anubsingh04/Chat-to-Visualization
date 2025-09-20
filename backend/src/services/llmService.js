@@ -1,13 +1,26 @@
 require('dotenv').config();
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const ValidationEngine = require('./validationEngine');
 
 class LLMService {
   constructor() {
     this.genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || 'demo-key');
-    this.model = this.genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
+    this.model = this.genAI.getGenerativeModel({ model: "gemini-2.5-pro" });
+    
+    // Initialize validation engine
+    try {
+      this.validationEngine = new ValidationEngine();
+      console.log('✅ Validation engine initialized');
+    } catch (error) {
+      console.warn('⚠️ Validation engine failed to initialize:', error.message);
+      this.validationEngine = null;
+    }
   }
 
-  async generateExplanationAndVisualization(question) {
+  async generateExplanationAndVisualization(question, options = {}) {
+    const { onProgress, validation = true } = options; // Default validation to true
+    console.log(`🔍 Validation ${validation ? 'enabled' : 'disabled'} for LLM generation`);
+    
     const systemPrompt = `You are an expert science educator with access to an advanced visualization engine. Create engaging explanations and stunning visualizations for any scientific question.
 
 When a user asks a question, respond with a JSON object containing:
@@ -173,6 +186,9 @@ Canvas size: 800x400px (auto-scaled)`;
         return this.generateMockResponse(question);
       }
 
+      // Progress: Starting LLM generation
+      if (onProgress) onProgress('llm_generation', 'Sending question to AI for initial response...');
+
       const prompt = `${systemPrompt}
 
 User Question: ${question}
@@ -183,10 +199,39 @@ Please respond with ONLY a valid JSON object (no markdown formatting or extra te
       const response = await result.response;
       const text = response.text();
       
+      // Progress: Initial response received
+      if (onProgress) onProgress('llm_response_received', 'Initial response received, parsing and validating...');
+      
       // Clean the response to ensure it's valid JSON
       const cleanedResponse = text.replace(/```json\n?|\n?```/g, '').trim();
       
-      const parsed = JSON.parse(cleanedResponse);
+      let parsed = JSON.parse(cleanedResponse);
+      
+      // 🔍 VALIDATION STEP: Use validation engine to check and fix the response (if enabled)
+      if (validation && this.validationEngine) {
+        try {
+          // Progress: Starting validation
+          if (onProgress) onProgress('validation_started', 'Initial response generated! Running validation checks...');
+          
+          console.log('🔍 Running validation engine on LLM response...');
+          const validatedResponse = await this.validationEngine.validateAndFix(parsed, question);
+          parsed = validatedResponse;
+          
+          // Progress: Validation completed
+          if (onProgress) onProgress('validation_completed', 'Validation completed! Applying final optimizations...');
+          console.log('✅ Validation completed successfully');
+        } catch (validationError) {
+          console.warn('⚠️ Validation failed, using original response:', validationError.message);
+          if (onProgress) onProgress('validation_skipped', 'Validation skipped, using original response...');
+          // Continue with original response if validation fails
+        }
+      } else if (!validation) {
+        console.log('🚫 Validation disabled by user preference, skipping validation');
+        if (onProgress) onProgress('validation_skipped', 'Validation disabled by user preference...');
+      } else {
+        console.log('⚠️ Validation engine not available, skipping validation');
+        if (onProgress) onProgress('validation_unavailable', 'Processing response without validation...');
+      }
       
       // Transform format if LLM used 'elements' instead of 'layers'
       if (parsed.visualization && parsed.visualization.elements && !parsed.visualization.layers) {
@@ -309,6 +354,9 @@ Please respond with ONLY a valid JSON object (no markdown formatting or extra te
         // Replace layers with transformed layers
         parsed.visualization.layers = transformedLayers;
       }
+      
+      // Progress: Final completion
+      if (onProgress) onProgress('completed', 'Response ready! Loading visualization...');
       
       return parsed;
     } catch (error) {
@@ -1023,6 +1071,35 @@ Please respond with ONLY a valid JSON object (no markdown formatting or extra te
         ]
       }
     };
+  }
+
+  /**
+   * Check if validation engine is available
+   */
+  isValidationAvailable() {
+    return this.validationEngine !== null;
+  }
+
+  /**
+   * Get quick validation status for a response
+   */
+  async quickValidate(response) {
+    if (!this.validationEngine) {
+      return { isValid: false, issues: ['Validation engine not available'], needsCorrection: false };
+    }
+    
+    return await this.validationEngine.quickValidate(response);
+  }
+
+  /**
+   * Manually validate and fix a response
+   */
+  async validateResponse(response, originalQuestion) {
+    if (!this.validationEngine) {
+      throw new Error('Validation engine not available');
+    }
+    
+    return await this.validationEngine.validateAndFix(response, originalQuestion);
   }
 }
 

@@ -12,11 +12,15 @@ let sseClients = [];
 // POST /api/questions - Submit a new question
 router.post('/questions', async (req, res) => {
   try {
-    const { userId, question } = req.body;
+    const { userId, question, options = {} } = req.body;
     
     if (!userId || !question) {
       return res.status(400).json({ error: 'userId and question are required' });
     }
+
+    // Extract validation preference from options
+    const validationEnabled = options.validation !== false; // Default to true
+    console.log(`🔍 Validation ${validationEnabled ? 'ENABLED' : 'DISABLED'} for question: ${question}`);
 
     // Create and save question
     const questionId = `q_${uuidv4()}`;
@@ -24,11 +28,61 @@ router.post('/questions', async (req, res) => {
     await dataStore.saveQuestion(questionObj);
 
     // Broadcast question created event
-    broadcastSSE('question_created', { question: questionObj });
+    broadcastSSE('question_received', { 
+      questionId,
+      question: questionObj,
+      status: 'received',
+      message: 'Question received, starting processing...' 
+    });
+
+    // Broadcast processing started
+    broadcastSSE('processing_started', { 
+      questionId,
+      status: 'processing',
+      message: 'Analyzing question and generating initial response...' 
+    });
 
     // Generate answer using LLM
-    const llmResponse = await llmService.generateExplanationAndVisualization(question);
+    const llmResponse = await llmService.generateExplanationAndVisualization(question, {
+      validation: validationEnabled, // Pass validation preference to LLM service
+      onProgress: (stage, message) => {
+        // Map LLM stages to appropriate SSE event types
+        let eventType = 'processing_progress'; // default
+        
+        switch(stage) {
+          case 'validation_started':
+            eventType = 'validation_started';
+            break;
+          case 'validation_completed':
+          case 'validation_skipped':
+            eventType = 'validation_completed';
+            break;
+          case 'llm_generation':
+          case 'llm_response_received':
+          case 'validation_unavailable':
+          case 'completed':
+          default:
+            eventType = 'processing_progress';
+            break;
+        }
+        
+        // Send progress updates during LLM processing
+        broadcastSSE(eventType, {
+          questionId,
+          stage,
+          status: 'in_progress',
+          message
+        });
+      }
+    });
     
+    // Broadcast completion
+    broadcastSSE('processing_complete', { 
+      questionId,
+      status: 'complete',
+      message: 'Response generated and validated successfully!' 
+    });
+
     // Create and save answer
     const answerId = `a_${uuidv4()}`;
     const answerObj = new Answer(answerId, llmResponse.text, llmResponse.visualization);
@@ -169,5 +223,64 @@ function broadcastSSE(eventType, data) {
   
   console.log(`✅ Broadcasted ${eventType} to ${sseClients.length} clients`);
 }
+
+// POST /api/validate - Validate a visualization response
+router.post('/validate', async (req, res) => {
+  try {
+    const { response, originalQuestion } = req.body;
+    
+    if (!response) {
+      return res.status(400).json({ error: 'Response is required for validation' });
+    }
+
+    console.log('🔍 Validation request received');
+
+    // Check if validation is available
+    if (!llmService.isValidationAvailable()) {
+      return res.status(503).json({ 
+        error: 'Validation service unavailable',
+        message: 'Validation engine is not initialized'
+      });
+    }
+
+    // Quick validation check
+    const quickValidation = await llmService.quickValidate(response);
+    
+    let validatedResponse = response;
+    if (quickValidation.needsCorrection && originalQuestion) {
+      console.log('🔧 Running full validation and correction...');
+      validatedResponse = await llmService.validateResponse(response, originalQuestion);
+    }
+
+    res.json({
+      success: true,
+      validation: quickValidation,
+      correctedResponse: validatedResponse,
+      wasChanged: JSON.stringify(response) !== JSON.stringify(validatedResponse)
+    });
+
+  } catch (error) {
+    console.error('❌ Validation API error:', error);
+    res.status(500).json({ 
+      error: 'Validation failed', 
+      message: error.message 
+    });
+  }
+});
+
+// GET /api/validation-status - Check validation engine status
+router.get('/validation-status', (req, res) => {
+  res.json({
+    available: llmService.isValidationAvailable(),
+    engine: 'Google Gemini 2.5 Pro',
+    features: [
+      'Animation logic validation',
+      'Visual design checks',
+      'Educational value assessment',
+      'Technical correctness verification',
+      'Automatic error correction'
+    ]
+  });
+});
 
 module.exports = router;

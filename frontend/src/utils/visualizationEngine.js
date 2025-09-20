@@ -66,7 +66,7 @@ export class VisualizationEngine {
     }
     
     // Log the visualization data being loaded (when debug mode enabled)
-    if (this.debug) console.log('🎬 Loading visualization:', vizData);
+    if (this.debug) console.log('Loading visualization:', vizData);
     
     // Store the visualization data (contains layers, duration, animations)
     this.visualization = vizData;
@@ -75,9 +75,9 @@ export class VisualizationEngine {
     this.normalizationBounds = this._calculateVisualizationBounds(vizData);
     
     if (this.debug && this.normalizationBounds) {
-      console.log('📐 Normalization enabled with bounds:', this.normalizationBounds);
+      console.log('Normalization enabled with bounds:', this.normalizationBounds);
     } else if (this.debug) {
-      console.log('📐 Normalization disabled - using original coordinates');
+      console.log('Normalization disabled - using original coordinates');
     }
     
     // Reset animation state to beginning
@@ -86,7 +86,7 @@ export class VisualizationEngine {
 
   reset() {
     // Log reset operation for debugging
-    if (this.debug) console.log('🔄 Resetting visualization');
+    if (this.debug) console.log('Resetting visualization');
     
     // Reset timeline to beginning
     this.currentTime = 0;           // Back to start of animation
@@ -199,7 +199,7 @@ export class VisualizationEngine {
     }
 
     // Debug logging to track render calls and timeline position
-    if (this.debug) console.log('🎨 Rendering visualization at time:', this.currentTime);
+    if (this.debug) console.log('Rendering visualization at time:', this.currentTime);
 
     // Clear the entire canvas to prepare for new frame
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
@@ -210,14 +210,14 @@ export class VisualizationEngine {
     const displayHeight = parseInt(this.canvas.style.height) || this.baseHeight;
     this.scaleX = displayWidth / this.baseWidth;    // Horizontal scale factor
     this.scaleY = displayHeight / this.baseHeight;  // Vertical scale factor
-    if (this.debug) console.log('📐 Scale factors', this.scaleX, this.scaleY);
+    if (this.debug) console.log('Scale factors', this.scaleX, this.scaleY);
 
     // Reset frame statistics for performance tracking
     this.lastFrameStats = { layersTried: 0, layersDrawn: 0, errors: [] };
     
     // Render each layer in order (layers are like Photoshop layers - painted top to bottom)
     (this.visualization.layers || []).forEach((layer, index) => {
-      if (this.debug) console.log(`🎯 Rendering layer ${index}:`, layer.type, layer.id);
+      if (this.debug) console.log(`Rendering layer ${index}:`, layer.type, layer.id);
       
       try {
         this.lastFrameStats.layersTried++;     // Count attempt
@@ -240,7 +240,7 @@ export class VisualizationEngine {
     const props = this.calculateProperties(layer);
     
     // Debug logging to show what properties we're using to draw
-    if (this.debug) console.log(`🎨 Rendering ${layer.type} with props:`, props);
+    if (this.debug) console.log(`Rendering ${layer.type} with props:`, props);
 
     // Dispatch to appropriate shape renderer based on layer type
     switch (layer.type) {

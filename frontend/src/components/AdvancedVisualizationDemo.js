@@ -9,7 +9,14 @@ const AdvancedVisualizationDemo = () => {
     if (!canvasRef.current) return;
 
     const canvas = canvasRef.current;
-    const engine = new VisualizationEngine(canvas, { debug: true });
+    const ctx = canvas.getContext('2d');
+    
+    if (!ctx) {
+      console.error('Could not get canvas context');
+      return;
+    }
+
+    const engine = new VisualizationEngine(canvas, ctx);
 
     // Demo visualizations showcasing advanced shapes and animations
     const demoData = {
