@@ -33,11 +33,13 @@ const corsOptions = {
   allowedHeaders: ['Content-Type', 'Authorization']
 };
 
-app.use(cors(corsOptions));
+app.use(cors({
+  origin: '*',
+}));
 
 // Built-in Express JSON and URL-encoded parsers (replaces body-parser)
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json({ limit: '1000mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1000mb' }));
 
 // Routes
 app.use('/api', apiRoutes);
