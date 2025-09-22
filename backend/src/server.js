@@ -16,6 +16,7 @@ const corsOptions = {
     const allowedOrigins = [
       'http://localhost:3000',
       'http://127.0.0.1:3000',
+      'https://chat-to-visualization.vercel.app',
       process.env.FRONTEND_URL,
       // Add your Railway frontend URL here once deployed
     ].filter(Boolean); // Remove undefined values
