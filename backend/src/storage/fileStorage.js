@@ -127,6 +127,22 @@ class FileStorage {
     return questions.find(q => q.id === questionId);
   }
 
+  async deleteQuestion(questionId) {
+    await this.initialize();
+    const questions = await this.getAllQuestions();
+    const initialLength = questions.length;
+    const filteredQuestions = questions.filter(q => q.id !== questionId);
+    
+    if (filteredQuestions.length === initialLength) {
+      console.log(`⚠️ Question ${questionId} not found for deletion`);
+      return false;
+    }
+    
+    await this.writeJsonFile(this.questionsFile, filteredQuestions);
+    console.log(`🗑️ Deleted question: ${questionId}`);
+    return true;
+  }
+
   // ANSWERS OPERATIONS
 
   async getAllAnswers() {

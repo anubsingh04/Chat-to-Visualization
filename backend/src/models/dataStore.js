@@ -42,6 +42,10 @@ const dataStore = {
     return await storage.getQuestionById(questionId);
   },
 
+  async deleteQuestion(questionId) {
+    return await storage.deleteQuestion(questionId);
+  },
+
   // Answer operations
   async getAllAnswers() {
     return await storage.getAllAnswers();
@@ -53,6 +57,38 @@ const dataStore = {
 
   async getAnswerById(answerId) {
     return await storage.getAnswerById(answerId);
+  },
+
+  // Get recent questions with their complete answers for conversation context
+  async getRecentQuestionsWithAnswers(limit = 3) {
+    try {
+      // Get all questions sorted by creation date (most recent first)
+      const allQuestions = await storage.getAllQuestions();
+      const sortedQuestions = allQuestions
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+        .slice(0, limit);
+
+      // Get answers for each question
+      const questionsWithAnswers = [];
+      for (const question of sortedQuestions) {
+        let answer = null;
+        if (question.answerId) {
+          answer = await storage.getAnswerById(question.answerId);
+        }
+        
+        questionsWithAnswers.push({
+          question: question.question,
+          answer: answer,
+          createdAt: question.createdAt
+        });
+      }
+
+      // Return in chronological order (oldest first) for natural conversation flow
+      return questionsWithAnswers.reverse();
+    } catch (error) {
+      console.error('Error fetching recent questions with answers:', error);
+      return [];
+    }
   },
 
   // Utility operations

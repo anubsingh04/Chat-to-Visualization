@@ -11,6 +11,9 @@ let sseClients = [];
 
 // POST /api/questions - Submit a new question
 router.post('/questions', async (req, res) => {
+  let questionObj = null; // Declare outside try block for error handling
+  let questionId = null;
+  
   try {
     const { userId, question, options = {} } = req.body;
     
@@ -23,8 +26,8 @@ router.post('/questions', async (req, res) => {
     console.log(`🔍 Validation ${validationEnabled ? 'ENABLED' : 'DISABLED'} for question: ${question}`);
 
     // Create and save question
-    const questionId = `q_${uuidv4()}`;
-    const questionObj = new Question(questionId, userId, question);
+    questionId = `q_${uuidv4()}`;
+    questionObj = new Question(questionId, userId, question);
     await dataStore.saveQuestion(questionObj);
 
     // Broadcast question created event
@@ -101,7 +104,30 @@ router.post('/questions', async (req, res) => {
 
   } catch (error) {
     console.error('Error processing question:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    
+    // Clean up: Delete the question from database if it was created but failed to get an answer
+    if (questionId) {
+      try {
+        await dataStore.deleteQuestion(questionId);
+        console.log(`🗑️ Cleaned up failed question: ${questionId}`);
+      } catch (deleteError) {
+        console.error('Error cleaning up failed question:', deleteError);
+        // Don't fail the error response if cleanup fails
+      }
+    }
+    
+    // Broadcast error to connected clients
+    broadcastSSE('error', { 
+      questionId: questionId,
+      status: 'error',
+      message: error.message || 'Failed to process question'
+    });
+    
+    // Return meaningful error message to client
+    res.status(500).json({ 
+      error: error.message || 'Internal server error',
+      details: 'The AI service encountered an error while processing your question.'
+    });
   }
 });
 

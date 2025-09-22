@@ -1,6 +1,7 @@
 require('dotenv').config();
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const ValidationEngine = require('./validationEngine');
+const { dataStore } = require('../models/dataStore');
 
 class LLMService {
   constructor() {
@@ -17,6 +18,41 @@ class LLMService {
     }
   }
 
+  // Build conversation context from recent Q&As for multi-turn conversations
+  async buildConversationContext(limit = 3) {
+    try {
+      const recentQAs = await dataStore.getRecentQuestionsWithAnswers(limit);
+      
+      if (recentQAs.length === 0) {
+        return null; // No previous conversation
+      }
+
+      // Format conversation history for the AI
+      const conversationHistory = recentQAs.map((qa, index) => {
+        let contextEntry = `\nPrevious Q${index + 1}: "${qa.question}"`;
+        
+        if (qa.answer) {
+          // Include answer text (truncated if too long)
+          const answerText = qa.answer.text?.substring(0, 300) || '';
+          contextEntry += `\nA${index + 1}: ${answerText}${answerText.length >= 300 ? '...' : ''}`;
+          
+          // Include full visualization JSON if present
+          if (qa.answer.visualization) {
+            contextEntry += `\n[Visualization JSON]: ${JSON.stringify(qa.answer.visualization)}`;
+          }
+        }
+        
+        return contextEntry;
+      }).join('\n---');
+
+      console.log(`📚 Built conversation context with ${recentQAs.length} recent Q&As`);
+      return conversationHistory;
+    } catch (error) {
+      console.error('Error building conversation context:', error);
+      return null;
+    }
+  }
+
   async generateExplanationAndVisualization(question, options = {}) {
     const { onProgress, validation = false } = options; // Default validation to false (OFF)
     console.log(`🔍 Validation ${validation ? 'enabled' : 'disabled'} for LLM generation`);
@@ -26,6 +62,13 @@ class LLMService {
 When a user asks a question, respond with a JSON object containing:
 1. "text": A clear, engaging explanation (2-3 sentences)
 2. "visualization": A creative animation that helps illustrate the concept
+
+CRITICAL JSON REQUIREMENTS:
+- Return ONLY valid, complete JSON - no code blocks, no explanations, no shortcuts
+- NEVER use ellipsis (...) or abbreviated syntax like "...Array.f..."
+- NEVER use trailing commas
+- All arrays and objects must be fully defined with complete syntax
+- Test your JSON validity before responding
 
 IMPORTANT: Use this exact format structure with CANVAS properties (NOT SVG):
 {
@@ -189,11 +232,32 @@ Canvas size: 800x400px (auto-scaled)`;
       // Progress: Starting LLM generation
       if (onProgress) onProgress('llm_generation', 'Sending question to AI for initial response...');
 
-      const prompt = `${systemPrompt}
+      // Build conversation context for multi-turn conversations
+      const conversationContext = await this.buildConversationContext(3);
+      
+      // Construct the prompt with optional conversation context
+      let prompt = systemPrompt;
+      
+      if (conversationContext) {
+        prompt += `\n\n📚 CONVERSATION CONTEXT:
+Previous conversation history (for reference and continuity):
+${conversationContext}
+---
 
-User Question: ${question}
+IMPORTANT: When relevant, build upon the previous conversation. You can:
+- Reference previous visualizations ("similar to the previous animation")
+- Build on previous explanations ("building on what we discussed about...")
+- Create visual continuity (reuse similar elements, colors, or styles)
+- Answer follow-up questions in context
+
+However, if the new question is unrelated to previous topics, treat it as a fresh question.`;
+      }
+      
+      prompt += `\n\nCurrent User Question: ${question}
 
 Please respond with ONLY a valid JSON object (no markdown formatting or extra text) containing the explanation and visualization specification.`;
+
+      console.log(`🔗 Context: ${conversationContext ? 'Using conversation history' : 'No previous context'}`);
 
       const result = await this.model.generateContent(prompt);
       const response = await result.response;
@@ -203,9 +267,38 @@ Please respond with ONLY a valid JSON object (no markdown formatting or extra te
       if (onProgress) onProgress('llm_response_received', 'Initial response received, parsing and validating...');
       
       // Clean the response to ensure it's valid JSON
-      const cleanedResponse = text.replace(/```json\n?|\n?```/g, '').trim();
+      let cleanedResponse = text.replace(/```json\n?|\n?```/g, '').trim();
       
-      let parsed = JSON.parse(cleanedResponse);
+      // Additional cleaning for common AI response issues
+      cleanedResponse = cleanedResponse
+        .replace(/\.\.\..*?\.\.\./g, '') // Remove ellipsis shortcuts like "...Array.f..."
+        .replace(/,\s*\]/g, ']')         // Remove trailing commas before closing brackets
+        .replace(/,\s*\}/g, '}')         // Remove trailing commas before closing braces
+        .replace(/,(\s*[,\]\}])/g, '$1') // Remove duplicate commas
+        .trim();
+      
+      let parsed;
+      try {
+        parsed = JSON.parse(cleanedResponse);
+      } catch (parseError) {
+        console.error('JSON Parse Error:', parseError.message);
+        console.error('Problematic JSON:', cleanedResponse.substring(0, 500) + '...');
+        
+        // Try to repair common JSON issues and parse again
+        let repairedJson = cleanedResponse
+          .replace(/\.\.\..*?\.\.\./g, '""') // Replace ellipsis with empty strings
+          .replace(/,(\s*[,\]\}])/g, '$1')   // Remove duplicate commas again
+          .replace(/([,\[])\s*,/g, '$1')     // Remove leading commas after brackets
+          .replace(/:\s*,/g, ': ""')         // Replace missing values with empty strings
+          .replace(/,\s*$/g, '');            // Remove trailing commas at end
+        
+        try {
+          parsed = JSON.parse(repairedJson);
+          console.log('✅ Successfully repaired and parsed JSON');
+        } catch (repairError) {
+          throw new Error(`Invalid JSON response from AI that could not be repaired: ${parseError.message}`);
+        }
+      }
       
       // 🔍 VALIDATION STEP: Use validation engine to check and fix the response (if enabled)
       if (validation && this.validationEngine) {
@@ -361,8 +454,26 @@ Please respond with ONLY a valid JSON object (no markdown formatting or extra te
       return parsed;
     } catch (error) {
       console.error('Gemini API Error:', error);
-      // Fallback to mock response
-      return this.generateMockResponse(question);
+      
+      // Determine appropriate error message based on error type
+      let errorMessage = 'Failed to generate AI response';
+      if (error.message) {
+        // Check for common API error patterns
+        if (error.message.includes('API key')) {
+          errorMessage = 'Invalid or missing Gemini API key. Please check your configuration.';
+        } else if (error.message.includes('quota') || error.message.includes('limit')) {
+          errorMessage = 'AI service quota exceeded. Please try again later.';
+        } else if (error.message.includes('timeout')) {
+          errorMessage = 'AI service request timed out. Please try again.';
+        } else if (error.message.includes('network') || error.message.includes('fetch')) {
+          errorMessage = 'Network connection error. Please check your internet connection.';
+        } else {
+          errorMessage = `AI service error: ${error.message}`;
+        }
+      }
+      
+      // Throw error to be handled by the API route
+      throw new Error(errorMessage);
     }
   }
 

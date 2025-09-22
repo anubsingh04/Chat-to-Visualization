@@ -287,9 +287,22 @@ function App() {
           setProcessingProgress({
             isProcessing: false,
             stage: 'error',
-            message: 'An error occurred during processing',
+            message: data.message || 'An error occurred during processing',
             questionId: null
           });
+          
+          // Remove any incomplete conversation that might have been added
+          if (data.questionId) {
+            setConversations(prev => prev.filter(conv => conv.id !== data.questionId));
+          }
+          
+          // Add error message to chat for better user visibility
+          const errorMessage = {
+            type: 'assistant',
+            text: data.message || 'An error occurred while processing your question.',
+            timestamp: new Date()
+          };
+          setMessages(prev => [...prev, errorMessage]);
           break;
           
         default:
@@ -326,10 +339,21 @@ function App() {
       console.error('Error sending message:', error);
       setIsLoading(false);
       
+      // Extract meaningful error message from the response
+      let errorText = 'Sorry, I encountered an error processing your question. Please try again.';
+      if (error.response?.data?.error) {
+        errorText = error.response.data.error;
+        if (error.response.data.details) {
+          errorText += ` ${error.response.data.details}`;
+        }
+      } else if (error.message) {
+        errorText = `Network error: ${error.message}`;
+      }
+      
       // Add error message to chat
       const errorMessage = {
         type: 'assistant',
-        text: 'Sorry, I encountered an error processing your question. Please try again.',
+        text: errorText,
         timestamp: new Date()
       };
       setMessages(prev => [...prev, errorMessage]);
